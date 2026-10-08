@@ -1,0 +1,118 @@
+[
+ {
+  "user_id": "u1",
+  "display_name": "alice",
+  "avatar": null,
+  "metadata": {
+   "team_name": "Alice's Team"
+  },
+  "league_id": "1000000000000000001",
+  "is_owner": true
+ },
+ {
+  "user_id": "u2",
+  "display_name": "manager2",
+  "avatar": null,
+  "metadata": {
+   "team_name": "Squad 2"
+  },
+  "league_id": "1000000000000000001",
+  "is_owner": false
+ },
+ {
+  "user_id": "u3",
+  "display_name": "manager3",
+  "avatar": null,
+  "metadata": {
+   "team_name": "Squad 3"
+  },
+  "league_id": "1000000000000000001",
+  "is_owner": false
+ },
+ {
+  "user_id": "u4",
+  "display_name": "manager4",
+  "avatar": null,
+  "metadata": {
+   "team_name": "Squad 4"
+  },
+  "league_id": "1000000000000000001",
+  "is_owner": false
+ },
+ {
+  "user_id": "u5",
+  "display_name": "manager5",
+  "avatar": null,
+  "metadata": {
+   "team_name": "Squad 5"
+  },
+  "league_id": "1000000000000000001",
+  "is_owner": false
+ },
+ {
+  "user_id": "u6",
+  "display_name": "manager6",
+  "avatar": null,
+  "metadata": {
+   "team_name": "Squad 6"
+  },
+  "league_id": "1000000000000000001",
+  "is_owner": false
+ },
+ {
+  "user_id": "u7",
+  "display_name": "manager7",
+  "avatar": null,
+  "metadata": {
+   "team_name": "Squad 7"
+  },
+  "league_id": "1000000000000000001",
+  "is_owner": false
+ },
+ {
+  "user_id": "u8",
+  "display_name": "manager8",
+  "avatar": null,
+  "metadata": {
+   "team_name": "Squad 8"
+  },
+  "league_id": "1000000000000000001",
+  "is_owner": false
+ },
+ {
+  "user_id": "u9",
+  "display_name": "manager9",
+  "avatar": null,
+  "metadata": {
+   "team_name": "Squad 9"
+  },
+  "league_id": "1000000000000000001",
+  "is_owner": false
+ },
+ {
+  "user_id": "u10",
+  "display_name": "manager10",
+  "avatar": null,
+  "metadata": {
+   "team_name": "Squad 10"
+  },
+  "league_id": "1000000000000000001",
+  "is_owner": false
+ },
+ {
+  "user_id": "u_commish",
+  "display_name": "commish",
+  "avatar": null,
+  "metadata": {},
+  "league_id": "1000000000000000001",
+  "is_owner": true
+ },
+ {
+  "user_id": "u_bob",
+  "display_name": "bob",
+  "avatar": null,
+  "metadata": {},
+  "league_id": "1000000000000000001",
+  "is_owner": false
+ }
+]

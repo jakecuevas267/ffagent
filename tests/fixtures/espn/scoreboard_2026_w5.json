@@ -1,0 +1,469 @@
+{
+ "week": {
+  "number": 5,
+  "teamsOnBye": [
+   {
+    "abbreviation": "KC"
+   },
+   {
+    "abbreviation": "CAR"
+   }
+  ]
+ },
+ "season": {
+  "year": 2026,
+  "type": 2
+ },
+ "events": [
+  {
+   "id": "401872980",
+   "date": "2026-10-09T00:15Z",
+   "name": "Tampa Bay Buccaneers at Dallas Cowboys",
+   "competitions": [
+    {
+     "competitors": [
+      {
+       "homeAway": "home",
+       "team": {
+        "abbreviation": "DAL"
+       }
+      },
+      {
+       "homeAway": "away",
+       "team": {
+        "abbreviation": "TB"
+       }
+      }
+     ],
+     "status": {
+      "type": {
+       "name": "STATUS_SCHEDULED",
+       "state": "pre",
+       "completed": false
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "401872981",
+   "date": "2026-10-11T13:30Z",
+   "name": "Philadelphia Eagles at Jacksonville Jaguars",
+   "competitions": [
+    {
+     "competitors": [
+      {
+       "homeAway": "home",
+       "team": {
+        "abbreviation": "JAX"
+       }
+      },
+      {
+       "homeAway": "away",
+       "team": {
+        "abbreviation": "PHI"
+       }
+      }
+     ],
+     "status": {
+      "type": {
+       "name": "STATUS_SCHEDULED",
+       "state": "pre",
+       "completed": false
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "401872990",
+   "date": "2026-10-11T17:00Z",
+   "name": "Chicago Bears at Green Bay Packers",
+   "competitions": [
+    {
+     "competitors": [
+      {
+       "homeAway": "home",
+       "team": {
+        "abbreviation": "GB"
+       }
+      },
+      {
+       "homeAway": "away",
+       "team": {
+        "abbreviation": "CHI"
+       }
+      }
+     ],
+     "status": {
+      "type": {
+       "name": "STATUS_SCHEDULED",
+       "state": "pre",
+       "completed": false
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "401872984",
+   "date": "2026-10-11T17:00Z",
+   "name": "Houston Texans at Tennessee Titans",
+   "competitions": [
+    {
+     "competitors": [
+      {
+       "homeAway": "home",
+       "team": {
+        "abbreviation": "TEN"
+       }
+      },
+      {
+       "homeAway": "away",
+       "team": {
+        "abbreviation": "HOU"
+       }
+      }
+     ],
+     "status": {
+      "type": {
+       "name": "STATUS_SCHEDULED",
+       "state": "pre",
+       "completed": false
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "401872982",
+   "date": "2026-10-11T17:00Z",
+   "name": "Cincinnati Bengals at Miami Dolphins",
+   "competitions": [
+    {
+     "competitors": [
+      {
+       "homeAway": "home",
+       "team": {
+        "abbreviation": "MIA"
+       }
+      },
+      {
+       "homeAway": "away",
+       "team": {
+        "abbreviation": "CIN"
+       }
+      }
+     ],
+     "status": {
+      "type": {
+       "name": "STATUS_SCHEDULED",
+       "state": "pre",
+       "completed": false
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "401872986",
+   "date": "2026-10-11T17:00Z",
+   "name": "Las Vegas Raiders at New England Patriots",
+   "competitions": [
+    {
+     "competitors": [
+      {
+       "homeAway": "home",
+       "team": {
+        "abbreviation": "NE"
+       }
+      },
+      {
+       "homeAway": "away",
+       "team": {
+        "abbreviation": "LV"
+       }
+      }
+     ],
+     "status": {
+      "type": {
+       "name": "STATUS_SCHEDULED",
+       "state": "pre",
+       "completed": false
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "401872987",
+   "date": "2026-10-11T17:00Z",
+   "name": "Minnesota Vikings at New Orleans Saints",
+   "competitions": [
+    {
+     "competitors": [
+      {
+       "homeAway": "home",
+       "team": {
+        "abbreviation": "NO"
+       }
+      },
+      {
+       "homeAway": "away",
+       "team": {
+        "abbreviation": "MIN"
+       }
+      }
+     ],
+     "status": {
+      "type": {
+       "name": "STATUS_SCHEDULED",
+       "state": "pre",
+       "completed": false
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "401872983",
+   "date": "2026-10-11T17:00Z",
+   "name": "Cleveland Browns at New York Jets",
+   "competitions": [
+    {
+     "competitors": [
+      {
+       "homeAway": "home",
+       "team": {
+        "abbreviation": "NYJ"
+       }
+      },
+      {
+       "homeAway": "away",
+       "team": {
+        "abbreviation": "CLE"
+       }
+      }
+     ],
+     "status": {
+      "type": {
+       "name": "STATUS_SCHEDULED",
+       "state": "pre",
+       "completed": false
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "401872985",
+   "date": "2026-10-11T17:00Z",
+   "name": "Indianapolis Colts at Pittsburgh Steelers",
+   "competitions": [
+    {
+     "competitors": [
+      {
+       "homeAway": "home",
+       "team": {
+        "abbreviation": "PIT"
+       }
+      },
+      {
+       "homeAway": "away",
+       "team": {
+        "abbreviation": "IND"
+       }
+      }
+     ],
+     "status": {
+      "type": {
+       "name": "STATUS_SCHEDULED",
+       "state": "pre",
+       "completed": false
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "401872988",
+   "date": "2026-10-11T17:00Z",
+   "name": "New York Giants at Washington Commanders",
+   "competitions": [
+    {
+     "competitors": [
+      {
+       "homeAway": "home",
+       "team": {
+        "abbreviation": "WSH"
+       }
+      },
+      {
+       "homeAway": "away",
+       "team": {
+        "abbreviation": "NYG"
+       }
+      }
+     ],
+     "status": {
+      "type": {
+       "name": "STATUS_SCHEDULED",
+       "state": "pre",
+       "completed": false
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "401872989",
+   "date": "2026-10-11T20:05Z",
+   "name": "Denver Broncos at Los Angeles Chargers",
+   "competitions": [
+    {
+     "competitors": [
+      {
+       "homeAway": "home",
+       "team": {
+        "abbreviation": "LAC"
+       }
+      },
+      {
+       "homeAway": "away",
+       "team": {
+        "abbreviation": "DEN"
+       }
+      }
+     ],
+     "status": {
+      "type": {
+       "name": "STATUS_SCHEDULED",
+       "state": "pre",
+       "completed": false
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "401872991",
+   "date": "2026-10-11T20:25Z",
+   "name": "Detroit Lions at Arizona Cardinals",
+   "competitions": [
+    {
+     "competitors": [
+      {
+       "homeAway": "home",
+       "team": {
+        "abbreviation": "ARI"
+       }
+      },
+      {
+       "homeAway": "away",
+       "team": {
+        "abbreviation": "DET"
+       }
+      }
+     ],
+     "status": {
+      "type": {
+       "name": "STATUS_SCHEDULED",
+       "state": "pre",
+       "completed": false
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "401872992",
+   "date": "2026-10-11T20:25Z",
+   "name": "San Francisco 49ers at Seattle Seahawks",
+   "competitions": [
+    {
+     "competitors": [
+      {
+       "homeAway": "home",
+       "team": {
+        "abbreviation": "SEA"
+       }
+      },
+      {
+       "homeAway": "away",
+       "team": {
+        "abbreviation": "SF"
+       }
+      }
+     ],
+     "status": {
+      "type": {
+       "name": "STATUS_SCHEDULED",
+       "state": "pre",
+       "completed": false
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "401872993",
+   "date": "2026-10-12T00:20Z",
+   "name": "Baltimore Ravens at Atlanta Falcons",
+   "competitions": [
+    {
+     "competitors": [
+      {
+       "homeAway": "home",
+       "team": {
+        "abbreviation": "ATL"
+       }
+      },
+      {
+       "homeAway": "away",
+       "team": {
+        "abbreviation": "BAL"
+       }
+      }
+     ],
+     "status": {
+      "type": {
+       "name": "STATUS_SCHEDULED",
+       "state": "pre",
+       "completed": false
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "401872994",
+   "date": "2026-10-13T00:15Z",
+   "name": "Buffalo Bills at Los Angeles Rams",
+   "competitions": [
+    {
+     "competitors": [
+      {
+       "homeAway": "home",
+       "team": {
+        "abbreviation": "LAR"
+       }
+      },
+      {
+       "homeAway": "away",
+       "team": {
+        "abbreviation": "BUF"
+       }
+      }
+     ],
+     "status": {
+      "type": {
+       "name": "STATUS_SCHEDULED",
+       "state": "pre",
+       "completed": false
+      }
+     }
+    }
+   ]
+  }
+ ]
+}

@@ -1,0 +1,23 @@
+# Copy to ffagent.yaml and fill in your leagues. Secrets go in .env, never here.
+season: 2026
+timezone: America/Denver
+
+llm:
+  model: "anthropic:claude-fable-5-1"   # any init_chat_model string; key comes from the environment
+
+leagues:
+  - platform: sleeper
+    league_id: "1234567890123456789"
+    me: your_sleeper_username          # resolved to your roster at runtime
+  - platform: espn
+    league_id: 123456
+    team_id: 4                         # your team id in the ESPN league
+    name: Work League
+
+sources: []        # e.g. [{type: manual, options: {dir: data/rankings}}]
+notify: [{type: stdout}]
+
+schedule:
+  waivers_lead_hours: 18
+  lineup_lead_hours: 24
+  inactives_lead_minutes: 75
