@@ -172,3 +172,4 @@ def test_espn_scoring_accepts_expert_points_for_the_league_format(provider, ref)
     assert score({"fp_points_ppr": 17.4, "fp_points_half": 15.0, "fp_points": 12.0}, scoring) == 17.4
     assert score({"espn_applied": 9.5}, scoring) == 9.5
     assert score({"rush_yd": 100}, scoring) == 0  # raw stat lines are not scorable on ESPN
+

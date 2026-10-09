@@ -64,7 +64,7 @@ def drop_candidates(settings: LeagueSettings, roster: list[Valued]) -> list[Valu
     """Roster players we could cut, worst first, never leaving a starting slot unfillable."""
     out = []
     for v in sorted(roster, key=lambda v: v.value):
-        if v.on_roster_slot in (Slot.IR, Slot.TAXI) or not v.droppable:
+        if v.on_roster_slot in (Slot.IR, Slot.TAXI) or not v.droppable or not v.player.droppable:
             continue
         rest = [x for x in roster if x.player.id != v.player.id]
         if _can_fill_slots(settings, rest):
@@ -146,3 +146,44 @@ def plan_claims(settings: LeagueSettings, roster: list[Valued], free_agents: lis
             break
     claims.sort(key=lambda c: -c.gain)
     return claims
+
+
+SPECULATIVE_SHARE = 0.02  # FAAB share for a flier
+DEAD_SPOT_PPG = 3.0       # a roster spot worth this little is free to use for a flier...
+DEAD_SPOT_BELOW = 0.3     # ...or one clearly below the wire: this far under replacement, as a fraction
+
+
+def is_dead_spot(d: Valued, replacement: dict) -> bool:
+    """Cheap enough to burn on a flier: near-worthless, or well below what the wire already offers.
+    A backup QB who merely equals replacement level is not dead."""
+    repl = replacement.get(d.player.position, 0.0)
+    return d.value <= DEAD_SPOT_PPG or (repl > 0 and d.value <= repl * (1 - DEAD_SPOT_BELOW))
+
+
+def speculative_adds(trending, available: dict, roster: list[Valued], settings: LeagueSettings, my_budget: int | None,
+                     replacement: dict, max_adds: int = 2, pending_adds: set[str] = frozenset(),
+                     already: set[str] = frozenset()) -> list[Claim]:
+    """Fliers: players Sleeper users are adding fast whom value cannot yet see (no team, returning, news).
+
+    Only costs a dead roster spot (a drop worth nothing over replacement) and a minimal bid.
+    """
+    dead = [d for d in drop_candidates(settings, roster) if is_dead_spot(d, replacement)]
+    out: list[Claim] = []
+    for t in trending:
+        fa = available.get(t.player_id)
+        if fa is None or fa.player.id in pending_adds or fa.player.id in already:
+            continue
+        if vorp(fa, replacement) > 0:
+            continue  # value already sees him; the regular path decides
+        if not dead:
+            break
+        drop = dead[0]
+        c = Claim(add=fa, drop=drop, gain=0.0, displaces=None, role="speculative")
+        why = "no NFL team" if fa.player.team is None else str(fa.player.injury_status) if fa.player.injury_status.value != "healthy" else "projects little yet"
+        c.notes = [t.label, f"{why}; worth a stash on a dead roster spot"]
+        if settings.waiver_type is WaiverType.FAAB and my_budget is not None:
+            c.bid = max(1, round(my_budget * SPECULATIVE_SHARE))
+        out.append(c)
+        if len(out) >= max_adds:
+            break
+    return out

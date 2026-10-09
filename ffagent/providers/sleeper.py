@@ -20,6 +20,7 @@ from ffagent.domain.models import (
     Slot,
     Team,
     Transaction,
+    Trend,
     WaiverType,
 )
 
@@ -198,9 +199,12 @@ class SleeperProvider:
         rostered = {pid for r in self._c.rosters(ref.league_id) for pid in (r.get("players") or [])}
         return [p for p in self.players() if p.id not in rostered]
 
-    def trending(self, kind: str = "add", lookback_hours: int = 24, limit: int = 25) -> list[tuple[str, int]]:
-        """(player_id, count) most added/dropped across all of Sleeper, most first."""
-        return [(str(t["player_id"]), int(t["count"])) for t in self._c.trending(kind, lookback_hours, limit)]
+    def trending(self, kind: str = "add", ref: LeagueRef | None = None, week: int | None = None,
+                 lookback_hours: int = 24, limit: int = 25) -> list[Trend]:
+        """Most added/dropped players across all of Sleeper in the last day, most first."""
+        verb = "adds" if kind == "add" else "drops"
+        return [Trend(player_id=str(t["player_id"]), count=int(t["count"]), label=f"{int(t['count']):,} {verb} in 24h")
+                for t in self._c.trending(kind, lookback_hours, limit)]
 
     def transactions(self, ref: LeagueRef, week: int) -> list[Transaction]:
         out = []

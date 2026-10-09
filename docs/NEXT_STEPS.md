@@ -56,7 +56,8 @@ Needs before it can be built:
 
 Defaults in place (tune after a real Tuesday): FAAB 15/7/3% of remaining budget by gain tier, capped one above the richest rival; priority leagues claim only on clear upgrades (≥ 4 ppg), marginal adds listed as post-waiver pickups.
 - [ ] Waiver processing times per league, so the run can say "claims process Wed 03:00".
-- [ ] ESPN `droppable` flag (undroppable list) is not yet carried into the drop logic.
+- [x] ESPN `droppable` flag honoured in the drop logic.
+- [x] Sleeper trending adds/drops drive speculative fliers and "being dropped" flags in every league.
 
 ## Slice 4 — Trade targets
 

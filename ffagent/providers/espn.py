@@ -63,7 +63,8 @@ def map_player(pl: dict) -> Player:
         positions=[pos] if pos else [], team=PRO_TEAMS.get(pl.get("proTeamId")),
         injury_status=INJURY.get(pl.get("injuryStatus"), InjuryStatus.HEALTHY),
         injury_note="day-to-day" if pl.get("injuryStatus") == "DAY_TO_DAY" else None,
-        active=bool(pl.get("active", True)), external_ids={Platform.ESPN: str(pl["id"])},
+        active=bool(pl.get("active", True)), droppable=pl.get("droppable", True) is not False,
+        external_ids={Platform.ESPN: str(pl["id"])},
     )
 
 

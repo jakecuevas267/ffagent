@@ -6,7 +6,14 @@ from typing import Any
 
 from langgraph.checkpoint.base import BaseCheckpointSaver
 
-from ffagent.analysis.waivers import INJURY_DISCOUNT, Valued, drop_candidates, plan_claims
+from ffagent.analysis.waivers import (
+    INJURY_DISCOUNT,
+    Valued,
+    drop_candidates,
+    plan_claims,
+    replacement_levels,
+    speculative_adds,
+)
 from ffagent.domain.identity import PlayerIndex
 from ffagent.domain.models import LeagueRef, Platform, ProposedAction, Slot, WaiverType
 from ffagent.graphs.common import ReviewState, build_review_graph
@@ -53,10 +60,11 @@ def build_waiver_graph(deps: LineupDeps, checkpointer: BaseCheckpointSaver | Non
                           bye_next=bool(player.team and player.team in next_byes), on_waivers=player.on_waivers)
 
         roster = [valued(index.by_id(e.player_id), e.slot) for e in me.roster if e.player_id and index.by_id(e.player_id)]
-        trending = dict(p.trending("add")) if hasattr(p, "trending") else {}
+        trends = deps.trends.for_league("add", ref, index) if deps.trends is not None else []
+        trend_count = {t.player_id: t.count for t in trends}
         usable = {pos for slot in settings.roster_slots for pos in _slot_positions(slot)}
-        pool = sorted((valued(f, None, trending.get(f.id, 0)) for f in fas if f.position in usable and f.id in values),
-                      key=lambda v: -v.value)[:FA_POOL]
+        available = {f.id: valued(f, None, trend_count.get(f.id, 0)) for f in fas if f.position in usable}
+        pool = sorted((v for v in available.values() if v.value > 0), key=lambda v: -v.value)[:FA_POOL]
 
         pending_adds = set()
         pending_lines = []
@@ -68,6 +76,8 @@ def build_waiver_graph(deps: LineupDeps, checkpointer: BaseCheckpointSaver | Non
         budget = me.faab_remaining if settings.waiver_type is WaiverType.FAAB else None
         rivals = [t.faab_remaining for t in teams if t.id != me.id and t.faab_remaining is not None]
         claims = plan_claims(settings, roster, pool, budget, rivals, max_claims=max_claims, pending_adds=pending_adds)
+        claims += speculative_adds(trends, available, roster, settings, budget, replacement_levels(pool), max_adds=2,
+                                   pending_adds=pending_adds, already={c.add.player.id for c in claims})
 
         rejected = deps.store.rejected_fingerprints(ref.key, wk) if deps.store is not None else set()
         proposals = []
@@ -81,13 +91,15 @@ def build_waiver_graph(deps: LineupDeps, checkpointer: BaseCheckpointSaver | Non
                 how = "free-agent pickup now (no priority spent)"
             else:
                 how = "free-agent pickup after waivers clear (no priority spent)"
+            if c.role == "speculative":
+                how = f"bid {c.bid} of {budget} FAAB (flier)" if c.bid is not None else "free-agent pickup (flier, no priority spent)"
             step = f"{how}: add {add.name}" + (f", drop {drop.name}" if drop else "")
             payload = {"slot": None, "player_in": add.id, "player_in_name": add.name, "player_out": drop.id if drop else None,
                        "player_out_name": drop.name if drop else None, "bid": c.bid, "use_priority": c.use_priority,
                        "gain": c.gain, "role": c.role, "step": step}
             if fingerprint("waiver_claim", payload) in rejected:
                 continue
-            ev = [f"{add.name} {c.add.value} ppg ROS [{c.add.source}] ({add.position}, {add.team}){' — on bye next week' if c.add.bye_next else ''}"]
+            ev = [f"{add.name} {c.add.value} ppg ROS [{c.add.source}] ({add.position}, {add.team or 'no team'}){' — on bye next week' if c.add.bye_next else ''}"]
             if drop:
                 ev.append(f"{drop.name} {c.drop.value} ppg ROS [{c.drop.source}]" + (f", {drop.injury_status}" if drop.injury_status.value != "healthy" else ""))
             if c.displaces:
@@ -95,19 +107,38 @@ def build_waiver_graph(deps: LineupDeps, checkpointer: BaseCheckpointSaver | Non
             ev += c.notes
             proposals.append(ProposedAction(
                 id=f"{thread_id(ref, wk)}:{n}", kind="waiver_claim", league_key=ref.key, payload=payload,
-                rationale=f"{'Claim' if c.bid is not None or c.use_priority else 'Pick up'} {add.name} ({c.role}, +{c.gain} ppg)"
+                rationale=(f"Stash {add.name} (speculative: {c.notes[0]})" if c.role == "speculative" else
+                           f"{'Claim' if c.bid is not None or c.use_priority else 'Pick up'} {add.name} ({c.role}, +{c.gain} ppg)")
                           + (f" for {drop.name}" if drop else ""), evidence=ev,
             ).model_dump(mode="json"))
 
         drops = [f"{v.player.name} ({v.value} ppg)" for v in drop_candidates(settings, roster)[:3]]
+        trending_lines = []
+        for t in trends:
+            v = available.get(t.player_id)
+            if v is None:
+                continue
+            pl = v.player
+            ctx = pl.team or "no team"
+            if pl.injury_status.value != "healthy":
+                ctx += f", {pl.injury_status}"
+            trending_lines.append(f"{pl.name} ({pl.position}, {ctx}) {v.value} ppg — {t.label}")
+            if len(trending_lines) >= 5:
+                break
+        mine = me.player_ids
+        trending_drops = []
+        if deps.trends is not None:
+            for t in deps.trends.for_league("drop", ref, index):
+                if t.player_id in mine:
+                    trending_drops.append(f"{name(t.player_id)} — {t.label}")
         verify = []
         if deps.store is not None:
-            mine = me.player_ids
             for pl in deps.store.approved_payloads(ref.key, wk, "waivers"):
                 verify.append(f"{pl['player_in_name']}: {'on roster' if pl['player_in'] in mine else 'not on roster (claim lost or not placed)'}")
         summary = {"team": me.name, "week": wk, "budget": budget, "priority": me.waiver_priority,
                    "waiver_type": settings.waiver_type, "values": deps.values.line(),
                    "drop_candidates": drops, "pending": pending_lines, "verify": verify,
+                   "trending": trending_lines, "trending_drops": trending_drops,
                    "projected_before": 0, "projected_after": 0, "first_kickoff": deps.schedule_for_week(ref.season, wk).first_kickoff.isoformat(),
                    "warnings": [], "flags": [], "close_calls": []}
         return {"proposals": proposals, "summary": summary, "week": wk}

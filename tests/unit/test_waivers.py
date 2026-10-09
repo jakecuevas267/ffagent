@@ -129,3 +129,53 @@ class TestPlan:
     def test_nothing_below_min_gain(self, roster):
         fas = [V("a", Position.WR, 5.5)]
         assert plan_claims(settings(), roster, fas, 100, []) == []
+
+
+class TestSpeculative:
+    def _trend(self, pid, label="700,000 adds in 24h"):
+        from ffagent.domain.models import Trend
+        return Trend(player_id=pid, count=700000, label=label)
+
+    def test_flier_on_a_dead_spot_with_minimal_bid(self, roster):
+        from ffagent.analysis.waivers import speculative_adds
+        mixon = V("mixon", Position.RB, 0.0)
+        mixon.player.team = None
+        repl = {Position.RB: 5.0, Position.WR: 6.0, Position.QB: 15.0}
+        claims = speculative_adds([self._trend("mixon")], {"mixon": mixon}, roster, settings(), 100, repl)
+        assert len(claims) == 1
+        c = claims[0]
+        assert c.role == "speculative" and c.drop.player.id == "wr4" and c.bid == 2
+        assert "no NFL team" in c.notes[1] and c.notes[0].startswith("700,000")
+
+    def test_player_value_already_sees_is_left_to_the_regular_path(self, roster):
+        from ffagent.analysis.waivers import speculative_adds
+        good = V("good", Position.RB, 9.0)
+        assert speculative_adds([self._trend("good")], {"good": good}, roster, settings(), 100, {Position.RB: 5.0}) == []
+
+    def test_no_dead_spot_means_no_flier(self, roster):
+        from ffagent.analysis.waivers import speculative_adds
+        mixon = V("mixon", Position.RB, 0.0)
+        repl = {pos: 0.0 for pos in Position}  # every roster player is worth something over replacement
+        assert speculative_adds([self._trend("mixon")], {"mixon": mixon}, roster, settings(), 100, repl) == []
+
+    def test_priority_league_flier_has_no_bid(self, roster):
+        from ffagent.analysis.waivers import speculative_adds
+        mixon = V("mixon", Position.RB, 0.0)
+        repl = {Position.WR: 6.0}
+        claims = speculative_adds([self._trend("mixon")], {"mixon": mixon}, roster, settings(WaiverType.ROLLING), None, repl)
+        assert claims and claims[0].bid is None and not claims[0].use_priority
+
+
+class TestDeadSpot:
+    def test_backup_qb_at_replacement_is_not_dead(self):
+        from ffagent.analysis.waivers import is_dead_spot
+        qb2 = V("qb2", Position.QB, 17.0, Slot.BN)
+        assert not is_dead_spot(qb2, {Position.QB: 17.5})
+
+    def test_well_below_replacement_is_dead(self):
+        from ffagent.analysis.waivers import is_dead_spot
+        assert is_dead_spot(V("rb9", Position.RB, 4.0, Slot.BN), {Position.RB: 7.0})
+
+    def test_near_worthless_is_dead_regardless(self):
+        from ffagent.analysis.waivers import is_dead_spot
+        assert is_dead_spot(V("wr9", Position.WR, 1.5, Slot.BN), {})

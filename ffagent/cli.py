@@ -94,6 +94,7 @@ def build_lineup_deps(config: Config, providers: dict[str, object], store=None):
     """Real projections + schedule for the graphs. Tests swap this out."""
     from ffagent.graphs.lineup import LineupDeps
     from ffagent.providers.espn import ESPNProjections
+    from ffagent.providers.sleeper import SleeperClient, SleeperProvider
     from ffagent.schedule.nfl import fetch_week
     from ffagent.sources.fantasy_api_source import (
         FantasyAPISource,
@@ -102,11 +103,14 @@ def build_lineup_deps(config: Config, providers: dict[str, object], store=None):
     )
     from ffagent.sources.gateway import ProjectionGateway
     from ffagent.sources.projections import SleeperProjections
+    from ffagent.sources.trending import SleeperTrends
     from ffagent.sources.values import ValueGateway
 
     key = api_key_from_env()
     fp = (FantasyAPISourceClient(key, cache_dir=config.data_dir / "cache", cache_hours=config.expert_cache_hours)
           if key and os.environ.get("FANTASY_INFORMATION_SOURCE_URL") else None)
+    # Sleeper's trending feed is the pickup-trend signal for every league; it needs no credentials.
+    trends = SleeperTrends(providers.get("sleeper") or SleeperProvider(SleeperClient()))
     deps = {}
     for plat, p in providers.items():
         default = ESPNProjections(p) if plat == "espn" else SleeperProjections()
@@ -114,7 +118,7 @@ def build_lineup_deps(config: Config, providers: dict[str, object], store=None):
         default_name = "ESPN" if plat == "espn" else "Sleeper"
         gateway = ProjectionGateway(default, expert, default_name=default_name)
         values = ValueGateway(default, expert, default_name=default_name)
-        deps[plat] = LineupDeps(p, gateway, fetch_week, store=store, values=values)
+        deps[plat] = LineupDeps(p, gateway, fetch_week, store=store, values=values, trends=trends)
     return deps
 
 
@@ -256,6 +260,10 @@ def cmd_run_waivers(config: Config, args) -> int:
             print(f"   ✓ last review: {v}")
         if s.get("drop_candidates"):
             print(f"   cheapest drops: {', '.join(s['drop_candidates'])}")
+        for line in s.get("trending", []):
+            print(f"   ↑ trending: {line}")
+        for line in s.get("trending_drops", []):
+            print(f"   ↓ on my roster, being dropped: {line}")
         if "__interrupt__" not in out:
             print("   no pickup worth a claim")
             continue

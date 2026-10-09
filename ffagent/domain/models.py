@@ -166,6 +166,7 @@ class Player(BaseModel):
     practice: str | None = None
     active: bool = True
     on_waivers: bool | None = None  # free agents only: True = must be claimed; None = unknown
+    droppable: bool = True          # ESPN undroppable list
     external_ids: dict[str, str] = Field(default_factory=dict)  # Platform values or other id namespaces (yahoo)
 
     @property
@@ -255,3 +256,11 @@ class Decision(BaseModel):
     verdict: str  # approved | edited | rejected | expired
     note: str = ""
     edited_payload: dict | None = None
+
+
+
+class Trend(BaseModel):
+    """A player being added (or dropped) unusually often on Sleeper right now. Used for every league."""
+    player_id: str    # id in the target league's platform namespace
+    count: int
+    label: str        # e.g. "702,126 adds in 24h"

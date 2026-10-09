@@ -186,8 +186,8 @@ class TestIRRules:
 class TestTrending:
     def test_trending_adds(self, provider):
         t = provider.trending("add")
-        assert len(t) == 25 and t[0][1] >= t[-1][1]
-        assert all(isinstance(pid, str) and isinstance(n, int) for pid, n in t)
+        assert len(t) == 25 and t[0].count >= t[-1].count
+        assert all(isinstance(x.player_id, str) and "adds in 24h" in x.label for x in t)
 
     def test_trending_drops(self, provider):
         assert provider.trending("drop")

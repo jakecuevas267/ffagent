@@ -76,3 +76,35 @@ def test_commissioner_league_is_skipped(ref):
     ref.my_team_id = None
     out, _ = run(build_waiver_graph(make_deps(), MemorySaver()), ref)
     assert "waiver workflow skipped" in out["error"]
+
+
+class FakeTrends:
+    def __init__(self, add_ids, drop_ids=()):
+        self.add_ids, self.drop_ids = add_ids, drop_ids
+
+    def for_league(self, kind, ref, index):
+        from ffagent.domain.models import Trend
+        ids = self.add_ids if kind == "add" else self.drop_ids
+        return [Trend(player_id=pid, count=700000 - i, label=f"{700000 - i:,} {'adds' if kind == 'add' else 'drops'} in 24h")
+                for i, pid in enumerate(ids)]
+
+
+def test_trending_unprojected_free_agent_is_proposed_as_a_flier(ref):
+    deps = make_deps(Store())
+    provider = deps.provider
+    proj = deps.projections.data
+    usable = {"QB", "RB", "WR", "TE"}
+    flier = next(f for f in provider.free_agents(ref) if f.position in usable)
+    proj.pop(flier.id, None)   # no projection at all...
+    flier.team = None          # ...because he is between teams
+    deps.trends = FakeTrends([flier.id], drop_ids=[provider.teams(ref)[0].roster[0].player_id])
+    graph = build_waiver_graph(deps, MemorySaver())
+    out, _ = run(graph, ref)
+    s = out["summary"]
+    assert any(flier.name in line and "no team" in line for line in s["trending"])
+    assert s["trending_drops"] and "drops in 24h" in s["trending_drops"][0]
+    props = out["__interrupt__"][0].value["proposals"]
+    spec = [p for p in props if p["payload"]["role"] == "speculative"]
+    assert len(spec) == 1 and spec[0]["payload"]["player_in"] == flier.id
+    assert spec[0]["rationale"].startswith("Stash ") and "(flier)" in spec[0]["payload"]["step"]
+    assert spec[0]["payload"]["bid"] == 2  # 2% of the 77 FAAB left, rounded
