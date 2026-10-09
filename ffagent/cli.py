@@ -102,6 +102,7 @@ def build_lineup_deps(config: Config, providers: dict[str, object], store=None):
     )
     from ffagent.sources.gateway import ProjectionGateway
     from ffagent.sources.projections import SleeperProjections
+    from ffagent.sources.values import ValueGateway
 
     key = api_key_from_env()
     fp = (FantasyAPISourceClient(key, cache_dir=config.data_dir / "cache", cache_hours=config.expert_cache_hours)
@@ -110,8 +111,10 @@ def build_lineup_deps(config: Config, providers: dict[str, object], store=None):
     for plat, p in providers.items():
         default = ESPNProjections(p) if plat == "espn" else SleeperProjections()
         expert = FantasyAPISource(fp, lambda ref, p=p: PlayerIndex(p.players())) if fp else None
-        gateway = ProjectionGateway(default, expert, default_name="ESPN" if plat == "espn" else "Sleeper")
-        deps[plat] = LineupDeps(p, gateway, fetch_week, store=store)
+        default_name = "ESPN" if plat == "espn" else "Sleeper"
+        gateway = ProjectionGateway(default, expert, default_name=default_name)
+        values = ValueGateway(default, expert, default_name=default_name)
+        deps[plat] = LineupDeps(p, gateway, fetch_week, store=store, values=values)
     return deps
 
 
@@ -196,6 +199,72 @@ def cmd_run_lineup(config: Config, args) -> int:
             continue
         payload = out["__interrupt__"][0].value
         print_review(payload, tz=tz)
+        if args.dry_run:
+            continue
+        decisions = collect_decisions(payload["proposals"], auto_approve=args.auto_approve)
+        final = graph.invoke(Command(resume=decisions), cfg)
+        print_checklist(ref.name, final.get("checklist", []))
+    return 0
+
+
+def cmd_run_waivers(config: Config, args) -> int:
+    from datetime import datetime
+
+    from langgraph.checkpoint.memory import MemorySaver
+    from langgraph.types import Command
+
+    from ffagent.graphs.waivers import build_waiver_graph, target_week, thread_id
+    from ffagent.review.cli import collect_decisions, print_checklist
+    from ffagent.store.db import Store
+
+    providers = build_providers(config)
+    store = None if args.dry_run else Store(config.data_dir / "ffagent.sqlite")
+    deps_by_platform = build_lineup_deps(config, providers, store)
+    refs = _select_refs(config, providers, args.league)
+    if refs is None:
+        return 2
+    now = datetime.fromisoformat(args.now) if args.now else _now()
+    saver = MemorySaver() if args.dry_run else store.checkpointer()
+
+    for ref in refs:
+        deps = deps_by_platform[ref.platform]
+        week = _week_for(deps, ref, args.week)
+        wk = target_week(deps.schedule_for_week, ref.season, week, now)
+        graph = build_waiver_graph(deps, saver, max_claims=config.waivers.max_claims)
+        cfg = {"configurable": {"thread_id": thread_id(ref, wk)}}
+        prior = graph.get_state(cfg)
+        if prior.values and not prior.next and not args.again:
+            print(f"\n== {ref.name}: waivers already reviewed for week {wk}; use --again to redo")
+            print_checklist(ref.name, prior.values.get("checklist", []))
+            continue
+        try:
+            out = graph.invoke({"league": ref.model_dump(mode="json"), "week": week, "now": now.isoformat()}, cfg) \
+                if not prior.next else {"__interrupt__": prior.tasks[0].interrupts, "summary": prior.values.get("summary", {})}
+        except AuthExpired as e:
+            print(f"{ref.name}: {e}", file=sys.stderr)
+            continue
+        if out.get("error"):
+            print(f"\n== {ref.name}: {out['error']}")
+            continue
+        s = out["summary"]
+        how = f"FAAB {s['budget']} left" if s.get("budget") is not None else f"waiver priority {s.get('priority')}"
+        print(f"\n== {ref.name} — waivers for week {s['week']} — {s['team']} — {how}")
+        print(f"   {s['values']}")
+        if s.get("pending"):
+            print(f"   pending claims: {', '.join(s['pending'])}")
+        for v in s.get("verify", []):
+            print(f"   ✓ last review: {v}")
+        if s.get("drop_candidates"):
+            print(f"   cheapest drops: {', '.join(s['drop_candidates'])}")
+        if "__interrupt__" not in out:
+            print("   no pickup worth a claim")
+            continue
+        payload = out["__interrupt__"][0].value
+        for n, p in enumerate(payload["proposals"], 1):
+            print(f"\n   [{n}] {p['rationale']}")
+            for e in p["evidence"]:
+                print(f"       - {e}")
+            print(f"       → {p['payload']['step']}")
         if args.dry_run:
             continue
         decisions = collect_decisions(payload["proposals"], auto_approve=args.auto_approve)
@@ -296,7 +365,7 @@ def main(argv: list[str] | None = None) -> int:
     lg.add_argument("--json", action="store_true")
     lg.add_argument("--all", action="store_true", help="show every team's roster, not just mine")
     run = sub.add_parser("run", help="run a workflow now")
-    run.add_argument("workflow", choices=["lineup", "injury"])
+    run.add_argument("workflow", choices=["lineup", "injury", "waivers"])
     run.add_argument("--league", help="league name or id; default all")
     run.add_argument("--week", type=int)
     run.add_argument("--now", help="ISO timestamp override (testing)")
@@ -318,6 +387,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_run_lineup(config, args)
     if args.cmd == "run" and args.workflow == "injury":
         return cmd_run_injury(config, args)
+    if args.cmd == "run" and args.workflow == "waivers":
+        return cmd_run_waivers(config, args)
     return 1
 
 

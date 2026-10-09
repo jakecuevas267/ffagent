@@ -155,6 +155,10 @@ class FantasyAPISource:
         self._index_for_ref = index_for_ref  # (ref) -> PlayerIndex of that platform's players
         self.unresolved: list[str] = []
 
+    def season(self, ref) -> dict[str, Projection]:
+        """Full-season projections (week 0): the rest-of-season value signal."""
+        return self.week(ref, 0)
+
     def week(self, ref, week: int) -> dict[str, Projection]:
         index = self._index_for_ref(ref)
         out: dict[str, Projection] = {}

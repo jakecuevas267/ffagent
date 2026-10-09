@@ -165,6 +165,7 @@ class Player(BaseModel):
     injury_note: str | None = None
     practice: str | None = None
     active: bool = True
+    on_waivers: bool | None = None  # free agents only: True = must be claimed; None = unknown
     external_ids: dict[str, str] = Field(default_factory=dict)  # Platform values or other id namespaces (yahoo)
 
     @property

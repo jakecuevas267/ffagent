@@ -29,6 +29,7 @@ platform numbers fill the rest, and each proposal says which source it used.
 .venv/bin/ffagent run lineup --league "Name" --again   # redo one league this week
 .venv/bin/ffagent run injury                     # game day: swaps for Out/Doubtful starters, status changes
 .venv/bin/ffagent run injury --watch --interval 15   # keep checking until the day's last kickoff
+.venv/bin/ffagent run waivers                    # Tuesday: claims with drops and bids, by rest-of-season value
 ```
 
 Reviews are remembered per league and week in `data/ffagent.sqlite`, so re-running shows the

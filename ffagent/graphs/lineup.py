@@ -19,12 +19,13 @@ LineupState = ReviewState
 class LineupDeps:
     """Everything the graphs need from the outside world, so tests can hand in fixtures."""
 
-    def __init__(self, provider, projections, schedule_for_week, close_margin: float = 1.0, store=None):
+    def __init__(self, provider, projections, schedule_for_week, close_margin: float = 1.0, store=None, values=None):
         self.provider = provider
         self.projections = projections          # .week(ref, week) -> dict[player_id, Projection]
         self.schedule_for_week = schedule_for_week  # (season, week) -> WeekSchedule
         self.close_margin = close_margin
         self.store = store                      # optional ffagent.store.db.Store
+        self.values = values                    # optional ffagent.sources.values.ValueGateway (waivers, trades)
 
 
 def thread_id(ref: LeagueRef, week: int) -> str:

@@ -191,8 +191,13 @@ class ESPNProvider:
 
     def free_agents(self, ref: LeagueRef, week: int | None = None) -> list[Player]:
         week = week or self.current_week()
-        return [map_player(e["player"]) for e in self._player_pool(ref, week)
-                if e.get("status") in ("FREEAGENT", "WAIVERS")]
+        out = []
+        for e in self._player_pool(ref, week):
+            if e.get("status") in ("FREEAGENT", "WAIVERS"):
+                pl = map_player(e["player"])
+                pl.on_waivers = e["status"] == "WAIVERS"
+                out.append(pl)
+        return out
 
     def transactions(self, ref: LeagueRef, week: int) -> list[Transaction]:
         """Waiver claims (incl. pending), free-agent adds and trades for a scoring period."""

@@ -54,6 +54,10 @@ class ScheduleConfig(BaseModel):
     morning_check_hour: int = 9
 
 
+class WaiverConfig(BaseModel):
+    max_claims: int = 3
+
+
 class Config(BaseModel):
     season: int
     timezone: str = "America/New_York"
@@ -62,6 +66,7 @@ class Config(BaseModel):
     sources: list[SourceConfig] = Field(default_factory=list)
     notify: list[NotifyConfig] = Field(default_factory=list)
     schedule: ScheduleConfig = Field(default_factory=ScheduleConfig)
+    waivers: WaiverConfig = Field(default_factory=WaiverConfig)
     data_dir: Path = Path("data")
     expert_cache_hours: float = 6.0  # expert projections are re-fetched at most this often
 

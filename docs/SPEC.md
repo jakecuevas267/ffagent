@@ -169,6 +169,8 @@ Deterministic: rank available players by expert rank adjusted for my positional 
 
 Output per league: ordered claims, each with add, drop, bid or priority order, and rationale. Fallback claims are ordered so a lost bid falls through to the next.
 
+Value scale (as built): rest-of-season points per game. Source order: the expert API's full-season projections scored under league rules and divided by 17; otherwise the platform's next-week projection. Injured players are discounted by status (Questionable 0.9, Doubtful 0.7, Out 0.4, IR 0.2). A pickup's gain is the change in best-lineup value if he would start, or 40% of his value gap over the drop if he only adds depth, plus a bonus for covering a starter's bye next week. The drop is the cheapest roster player whose removal still lets every starting slot be filled; IR occupants and undroppable players are never cut. FAAB bids are 15% / 7% / 3% of remaining budget by gain tier, at least the league minimum, never more than one above the richest rival. Priority leagues get a claim only for clear upgrades (≥ 4 ppg gain); smaller gains are listed as free-agent pickups after waivers clear. Pending claims are shown and not duplicated; approved claims are checked against the roster on the next run.
+
 ### 6.2 Lineup
 
 Deterministic: fill roster slots to maximize expert weekly rank (fallback: platform projection), honoring slot eligibility, byes and injury status. Flex decisions within a small rank margin are marked as close calls and passed to the LLM with matchup context.
@@ -278,7 +280,7 @@ Built as vertical slices, in the order the features are used during a week. Each
 - **M1 Foundation.** Domain models, identity, Sleeper provider, config, `ffagent leagues`. *Done 2026-10-08 (offline tests); live check against real leagues pending.*
 - **M2 Lineup (Thursday lock).** Slate calendar, projections source, lineup optimizer, first graph with interrupt, CLI review, checklist. *Done 2026-10-08 on Sleeper; verify-on-next-run and ESPN still to come.* First real use: week 6.
 - **M3 Injury start/sit (game days).** Status snapshots and diffs, necessary-moves-only replacement search, rejected-move memory for the week, verification of approved lineup moves, `--watch` loop for a game day. *Built 2026-10-08; first live use pending a game day.*
-- **M4 Waivers (Tuesday).** Free-agent ranking, need scoring, drop candidates, FAB sizing, fallback chains.
+- **M4 Waivers (Tuesday).** Free-agent ranking, need scoring, drop candidates, FAB sizing, fallback chains. *Built 2026-10-09; first live use Tue 10/13.*
 - **M5 Trade targets.** Need/surplus per team, partner matching, fairness band, drafted messages.
 - **M6 League audit.** Every team's lineup checked for byes, injuries and empty slots; manager notices.
 - **M7 ESPN provider.** *Done 2026-10-08:* settings, teams, lineups, free agents, matchups and ESPN's own league-scored weekly projections, from recorded (scrubbed) fixtures of two real leagues. Transactions view still TODO. Each later slice is checked on both platforms.
@@ -297,6 +299,7 @@ Built as vertical slices, in the order the features are used during a week. Each
 - 2026-10-08: Trade targets run weekly after waivers clear, plus on demand.
 - 2026-10-08: Added the league audit workflow (6.5) for notifying other managers.
 - 2026-10-08: Build order changed to vertical slices: lineup → injury start/sit → waivers → trade targets → league audit. Credentials stay in `.env` and runs stay manual until all five work.
+- 2026-10-09: Slice 3 (`ffagent run waivers`) built on a rest-of-season points-per-game value scale from the expert API's season projections (week 0), platform next-week projections as fallback.
 - 2026-10-09: FantasyAPISource (premium key) is the first expert source, behind a projection gateway with per-player fallback to Sleeper/ESPN. Env var `FANTASY_INFORMATION_SOURCE_API_KEY` (or `_KEY`); absent key means platform defaults, unchanged behavior.
 - 2026-10-09: Sleeper IR/taxi slots come from `settings.reserve_slots` / `taxi_slots`, not `roster_positions` (provider fixed). Added IR housekeeping to the injury run at the manager's request.
 - 2026-10-08: Slice 2 (`ffagent run injury [--watch]`): Doubtful is treated like Out (benched when a replacement exists); Questionable is flagged and listed under "watch" with kickoff time. Healthy starters are pinned so game-day runs never propose projection-only swaps. Decisions are remembered by content fingerprint (kind, slot, in, out) so a rejected swap is not re-asked the same week.

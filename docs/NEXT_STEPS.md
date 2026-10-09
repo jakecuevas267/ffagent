@@ -23,7 +23,7 @@ safer than a file, and is open source so anyone with a Sleeper or ESPN league ca
 | Projections | Sleeper feed for Sleeper leagues; ESPN's own for ESPN leagues |
 | Slice 1 — lineup (Thursday lock) | Done, used live on all 6 leagues |
 | Slice 2 — injury start/sit + IR housekeeping | Done, committed; first real game-day use Sun 10/11 |
-| Slice 3 — waivers (Tuesday) | Provider groundwork done; analysis pending two decisions (below) |
+| Slice 3 — waivers (Tuesday) | Built; first live use Tue 10/13 |
 | Slice 4 — trade targets | Not started |
 | Slice 5 — league-wide lineup audit | Not started |
 | Expert source | FantasyAPISource (premium) through the projection gateway; Upper Hand still pending access |
@@ -52,13 +52,11 @@ Needs before it can be built:
 - [x] Sleeper trending adds/drops wired into the provider. Done 10/9.
 - [ ] Each league's waiver processing time: Sleeper `waiver_day_of_week` + `daily_waivers` + `daily_waivers_days`
       (a bitmask; encoding still to decode), ESPN `waiverProcessDays` + `waiverProcessHour`. Not needed while runs are manual.
-- [ ] Rest-of-season value, not just this week's projection, to judge drops. Without an expert source
-      the fallback is season-to-date points plus next-week projection.
+- [x] Rest-of-season value: expert season projections / 17 as points per game; platform next-week projection as fallback.
 
-Decisions for the manager:
-- How aggressive on FAAB by default in FAAB leagues? A percentage of remaining
-  budget scaled by the expert's recommendation, capped by what rivals can bid, is the plan.
-- For rolling/priority leagues, should the agent suggest spending priority at all on marginal adds?
+Defaults in place (tune after a real Tuesday): FAAB 15/7/3% of remaining budget by gain tier, capped one above the richest rival; priority leagues claim only on clear upgrades (≥ 4 ppg), marginal adds listed as post-waiver pickups.
+- [ ] Waiver processing times per league, so the run can say "claims process Wed 03:00".
+- [ ] ESPN `droppable` flag (undroppable list) is not yet carried into the drop logic.
 
 ## Slice 4 — Trade targets
 
