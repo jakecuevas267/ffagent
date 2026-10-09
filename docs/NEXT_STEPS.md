@@ -80,6 +80,33 @@ where nothing else applies.
 
 ## After the five slices, in this order
 
+### Phase 0 — Credentials out of `.env`
+Today five values live in `.env`: ESPN `espn_s2` and `SWID`, the LLM key, and the expert API key
+and URL. Replace the file with a `SecretsProvider` that the app asks by name, with three backends:
+
+- **env / `.env`** — stays as the zero-setup default and the CI/test path.
+- **OS keyring** (`keyring` library: macOS Keychain, Windows Credential Locker, Linux Secret Service)
+  — free, local, right for a laptop; not reachable from inside a container.
+- **AWS SSM Parameter Store, SecureString, standard tier** — the chosen remote store. Free: standard
+  parameters have no charge, the AWS-managed `aws/ssm` KMS key has no key fee, and KMS request
+  charges at a few dozen reads a week are negligible. Works from a laptop, a container or a cloud
+  scheduler alike. (Secrets Manager is the wrong pick at $0.40 per secret per month.)
+  Bootstrap: one AWS credential (an IAM user or role allowed only `ssm:GetParameter` on the
+  `/ffagent/*` path and `kms:Decrypt` on `aws/ssm`) replaces five secrets on disk, and that one can
+  live in the keyring or an instance role.
+
+Alternatives looked at and why not: GCP Secret Manager's free tier is 6 active versions, which we
+would exceed on the first rotation; Doppler (free, 3 users) and Infisical (free, 5 identities) are
+good products but another account for a solo project; HashiCorp Vault is overkill to self-host.
+
+- [ ] `ffagent/secrets.py`: `get(name)` resolving in order ssm → keyring → env, backend chosen by
+      `FFAGENT_SECRETS=ssm|keyring|env`; everything that reads `os.environ` for a secret goes through it.
+- [ ] `ffagent secrets set <name>` / `secrets check` commands, so cookies can be refreshed without
+      editing files; `check` reports which backend answered and which names are missing.
+- [ ] Early expiry detection for the ESPN cookies (one cheap authenticated call) surfaced by `check`.
+- [ ] Never log or print values; redact in errors (already the case for ESPN).
+- [ ] Docs: the AWS setup in five CLI commands, and the IAM policy JSON.
+
 ### Phase A — Docker instead of venv
 Containerize the CLI so setup is `docker compose run ffagent …` on any machine, and so the UI and
 scheduler later run in the same image.
@@ -148,9 +175,7 @@ passing it.
       scheduled GitHub Actions with the SQLite file persisted.
 
 ### Credentials
-- [ ] Move ESPN cookies and LLM keys out of `.env` into the macOS Keychain or 1Password CLI,
-      with `.env` kept as a fallback for other platforms.
-- [ ] Detect ESPN cookie expiry early (a nightly auth check) rather than at the moment of need.
+See Phase 0 above.
 
 ### Open-source readiness
 - [x] Name: `ffagent`. License: MIT. Public at github.com/jakecuevas267/ffagent (10/9).
