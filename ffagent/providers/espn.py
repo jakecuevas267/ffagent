@@ -36,6 +36,8 @@ INJURY = {None: InjuryStatus.HEALTHY, "ACTIVE": InjuryStatus.HEALTHY, "NORMAL": 
           "DAY_TO_DAY": InjuryStatus.QUESTIONABLE, "QUESTIONABLE": InjuryStatus.QUESTIONABLE,
           "DOUBTFUL": InjuryStatus.DOUBTFUL, "OUT": InjuryStatus.OUT, "INJURY_RESERVE": InjuryStatus.IR,
           "SUSPENSION": InjuryStatus.SUSPENDED, "PROBABLE": InjuryStatus.HEALTHY}
+_TX_KINDS = {"WAIVER": "waiver", "FREEAGENT": "free_agent", "TRADE_ACCEPT": "trade", "TRADE": "trade"}
+_TX_STATUS = {"EXECUTED": "complete", "PENDING": "pending", "CANCELED": "canceled"}
 WAIVERS = {"WAIVERS_CONTINUOUS": WaiverType.ROLLING, "WAIVERS_TRADITIONAL": WaiverType.REVERSE_STANDINGS,
            "FREEAGENCY": WaiverType.NONE}
 
@@ -183,7 +185,20 @@ class ESPNProvider:
                 if e.get("status") in ("FREEAGENT", "WAIVERS")]
 
     def transactions(self, ref: LeagueRef, week: int) -> list[Transaction]:
-        return []  # TODO: ESPN transactions view (mTransactions2) — needed for waivers/verify slices
+        """Waiver claims (incl. pending), free-agent adds and trades for a scoring period."""
+        out = []
+        for t in self._c.transactions(ref.league_id):
+            if t.get("scoringPeriodId") != week or t.get("type") not in _TX_KINDS:
+                continue
+            adds = {player_id(i["playerId"]): str(i["toTeamId"]) for i in t.get("items", []) if i.get("type") == "ADD"}
+            drops = {player_id(i["playerId"]): str(i["fromTeamId"]) for i in t.get("items", []) if i.get("type") == "DROP"}
+            out.append(Transaction(
+                id=str(t["id"]), kind=_TX_KINDS[t["type"]], status=_TX_STATUS.get(t.get("status"), "failed"),
+                team_ids=sorted({str(t.get("teamId"))} | set(adds.values()) | set(drops.values()) - {"0"}),
+                adds=adds, drops=drops, faab_bid=t.get("bidAmount") if t["type"] == "WAIVER" else None,
+                created=datetime.fromtimestamp(t["proposedDate"] / 1000, tz=UTC) if t.get("proposedDate") else None,
+            ))
+        return out
 
     def projections(self, ref: LeagueRef, week: int) -> dict[str, Projection]:
         """ESPN's weekly projections, already applied under this league's scoring."""

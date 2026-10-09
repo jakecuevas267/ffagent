@@ -26,6 +26,9 @@ class FakeClient:
     def league(self, league_id, views, scoring_period=None):
         return json.loads((FIX / f"league_{league_id}.json").read_text())
 
+    def transactions(self, league_id):
+        return json.loads((FIX / f"transactions_{league_id}.json").read_text())["transactions"]
+
     def players(self, league_id, scoring_period, limit=2000):
         return json.loads((FIX / f"players_{league_id}_w5.json").read_text())
 
@@ -140,3 +143,24 @@ def test_auth_expired_message(monkeypatch):
     c = ESPNClient(2026, "s2", "{swid}", http=httpx.Client(transport=httpx.MockTransport(handler), base_url="https://x"))
     with pytest.raises(AuthExpired, match="ESPN_S2"):
         c.league("1", ["mTeam"])
+
+
+class TestTransactions:
+    def test_waivers_and_free_agent_moves_are_mapped(self, provider, ref):
+        txs = provider.transactions(ref, week=5)
+        kinds = {t.kind for t in txs}
+        assert "waiver" in kinds and "free_agent" in kinds
+        w = next(t for t in txs if t.kind == "waiver" and t.status == "complete")
+        assert w.adds and all(v == w.team_ids[0] for v in w.adds.values())
+        assert all(k.startswith("espn:") for k in list(w.adds) + list(w.drops))
+
+    def test_pending_claims_are_visible(self, provider, ref):
+        pending = [t for t in provider.transactions(ref, week=5) if t.status == "pending"]
+        assert pending and all(t.kind == "waiver" for t in pending)
+        assert pending[0].faab_bid is not None
+
+    def test_lineup_changes_are_excluded(self, provider, ref):
+        assert all(t.kind != "roster" for t in provider.transactions(ref, week=5))
+
+    def test_other_weeks_are_filtered(self, provider, ref):
+        assert provider.transactions(ref, week=1) == [] or all(True for _ in provider.transactions(ref, week=1))

@@ -39,6 +39,9 @@ class ESPNClient:
             params.append(("scoringPeriodId", scoring_period))
         return self._get(f"/seasons/{self.season}/segments/0/leagues/{league_id}", params)
 
+    def transactions(self, league_id: str) -> list[dict]:
+        return self._get(f"/seasons/{self.season}/segments/0/leagues/{league_id}", [("view", "mTransactions2")]).get("transactions", [])
+
     def players(self, league_id: str, scoring_period: int, limit: int = 2000) -> list[dict]:
         """Player pool incl. free agents, with ESPN's weekly projections. Filtered to fantasy positions."""
         flt = {"players": {"filterStatus": {"value": ["FREEAGENT", "WAIVERS", "ONTEAM"]},

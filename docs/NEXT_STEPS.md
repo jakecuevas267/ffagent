@@ -18,12 +18,12 @@ safer than a file, and is open source so anyone with a Sleeper or ESPN league ca
 |---|---|
 | Foundation: models, player identity, config, CLI | Done |
 | Sleeper provider | Done (official API, no auth) |
-| ESPN provider | Done except transactions (needed for waivers and verification) |
+| ESPN provider | Done |
 | NFL schedule: kickoffs, byes, locks, slates | Done |
 | Projections | Sleeper feed for Sleeper leagues; ESPN's own for ESPN leagues |
 | Slice 1 — lineup (Thursday lock) | Done, used live on all 6 leagues |
-| Slice 2 — injury start/sit + IR housekeeping | Built; first real game-day use pending (Sun 10/11) |
-| Slice 3 — waivers (Tuesday) | Not started |
+| Slice 2 — injury start/sit + IR housekeeping | Done, committed; first real game-day use Sun 10/11 |
+| Slice 3 — waivers (Tuesday) | Provider groundwork done; analysis pending two decisions (below) |
 | Slice 4 — trade targets | Not started |
 | Slice 5 — league-wide lineup audit | Not started |
 | Expert source (Upper Hand) | Access requested; projections stand in meanwhile |
@@ -31,11 +31,11 @@ safer than a file, and is open source so anyone with a Sleeper or ESPN league ca
 | Scheduling | Manual (`ffagent run …`, `--watch` for game days) |
 | Credentials | `.env` |
 
-Tests: 186 offline, 4 opt-in live. Everything through slice 1 is committed; slice 2 is not yet.
+Tests: 192 offline, 4 opt-in live. Slices 1 and 2 are committed; slice 3 groundwork is not yet.
 
 ## Immediate
 
-- [ ] Commit slice 2 (injury workflow, IR housekeeping, Sleeper IR-slot fix).
+- [x] Commit slice 2 (injury workflow, IR housekeeping, Sleeper IR-slot fix). `ad56c3e`
 - [ ] Sunday 10/11: first real `ffagent run injury --watch`. Capture what was noisy, what was missed,
       and whether "Doubtful = bench" and "Questionable = watch" are the right defaults.
 - [ ] Wednesday 10/14: first real `ffagent run lineup` review for week 6 (not a dry run), to see
@@ -48,10 +48,10 @@ positional weakness), pick a drop for each add, size the claim (FAB amount, or c
 priority leagues), and chain fallbacks so a lost claim falls through to the next.
 
 Needs before it can be built:
-- [ ] ESPN transactions view (`mTransactions2` / recent activity) so claims and adds can be verified.
-- [ ] Sleeper trending adds/drops (endpoint exists, not wired).
-- [ ] Each league's waiver processing time: Sleeper `waiver_day_of_week` + `daily_waivers`;
-      ESPN `waiverProcessDays` + `waiverProcessHour`. Both are in the fixtures.
+- [x] ESPN transactions view (`mTransactions2`): waiver claims incl. pending with bids, free-agent adds. Done 10/9.
+- [x] Sleeper trending adds/drops wired into the provider. Done 10/9.
+- [ ] Each league's waiver processing time: Sleeper `waiver_day_of_week` + `daily_waivers` + `daily_waivers_days`
+      (a bitmask; encoding still to decode), ESPN `waiverProcessDays` + `waiverProcessHour`. Not needed while runs are manual.
 - [ ] Rest-of-season value, not just this week's projection, to judge drops. Without an expert source
       the fallback is season-to-date points plus next-week projection.
 
@@ -115,7 +115,6 @@ where nothing else applies.
 
 ## Known gaps and debt
 
-- ESPN `transactions()` returns an empty list.
 - ESPN `lineups()` is current-week only (past weeks need the matchup view with a scoring period).
 - Sleeper projections endpoint is undocumented; the live tests are the early warning.
 - ESPN `DAY_TO_DAY` maps to Questionable, which may be noisier than it should be.

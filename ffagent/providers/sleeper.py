@@ -196,6 +196,10 @@ class SleeperProvider:
         rostered = {pid for r in self._c.rosters(ref.league_id) for pid in (r.get("players") or [])}
         return [p for p in self.players() if p.id not in rostered]
 
+    def trending(self, kind: str = "add", lookback_hours: int = 24, limit: int = 25) -> list[tuple[str, int]]:
+        """(player_id, count) most added/dropped across all of Sleeper, most first."""
+        return [(str(t["player_id"]), int(t["count"])) for t in self._c.trending(kind, lookback_hours, limit)]
+
     def transactions(self, ref: LeagueRef, week: int) -> list[Transaction]:
         out = []
         for t in self._c.transactions(ref.league_id, week):

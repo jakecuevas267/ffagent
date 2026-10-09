@@ -38,6 +38,7 @@ class FakeClient:
     def transactions(self, league_id, week): return self._get("transactions_w5")
     def players(self):                    return self._get("players")
     def state(self):                      return self._get("state")
+    def trending(self, kind="add", lookback_hours=24, limit=25): return self._get(f"trending_{kind}")
 
 
 @pytest.fixture
@@ -180,3 +181,13 @@ class TestIRRules:
         s = provider.settings(ref)  # fixture: reserve_allow_out=1, nothing else
         assert s.ir_eligible(InjuryStatus.IR) and s.ir_eligible(InjuryStatus.OUT)
         assert not s.ir_eligible(InjuryStatus.DOUBTFUL) and not s.ir_eligible(InjuryStatus.QUESTIONABLE)
+
+
+class TestTrending:
+    def test_trending_adds(self, provider):
+        t = provider.trending("add")
+        assert len(t) == 25 and t[0][1] >= t[-1][1]
+        assert all(isinstance(pid, str) and isinstance(n, int) for pid, n in t)
+
+    def test_trending_drops(self, provider):
+        assert provider.trending("drop")
