@@ -55,7 +55,7 @@ class TestSettings:
         assert s.roster_slots == {Slot.QB: 1, Slot.RB: 2, Slot.WR: 2, Slot.TE: 1, Slot.DEF: 1, Slot.K: 1,
                                   Slot.BN: 7, Slot.IR: 1, Slot.FLEX: 1}
         assert s.format is Format.REDRAFT
-        assert s.scoring == {APPLIED: 1.0}
+        assert s.scoring == {APPLIED: 1.0, "fp_points_ppr": 1.0}
 
     def test_traditional_waivers_without_faab(self, provider, ref):
         s = provider.settings(ref)
@@ -164,3 +164,11 @@ class TestTransactions:
 
     def test_other_weeks_are_filtered(self, provider, ref):
         assert provider.transactions(ref, week=1) == [] or all(True for _ in provider.transactions(ref, week=1))
+
+
+def test_espn_scoring_accepts_expert_points_for_the_league_format(provider, ref):
+    from ffagent.sources.projections import score
+    scoring = provider.settings(ref).scoring  # fixture league is PPR
+    assert score({"fp_points_ppr": 17.4, "fp_points_half": 15.0, "fp_points": 12.0}, scoring) == 17.4
+    assert score({"espn_applied": 9.5}, scoring) == 9.5
+    assert score({"rush_yd": 100}, scoring) == 0  # raw stat lines are not scorable on ESPN

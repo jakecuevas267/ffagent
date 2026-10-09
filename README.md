@@ -12,8 +12,12 @@ Design: [docs/SPEC.md](docs/SPEC.md).
 ```bash
 python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"
 cp ffagent.example.yaml ffagent.yaml   # add your leagues
-cp .env.example .env                   # ESPN cookies, LLM key
+cp .env.example .env                   # ESPN cookies, LLM key, optional FantasyAPISource key
 ```
+
+Projections come from Sleeper and ESPN by default. Set `FANTASY_INFORMATION_SOURCE_API_KEY` to a
+FantasyAPISource API key (premium tier) and their projections take over for every player they cover; the
+platform numbers fill the rest, and each proposal says which source it used.
 
 ## Use
 

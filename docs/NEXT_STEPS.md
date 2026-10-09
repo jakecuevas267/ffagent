@@ -26,7 +26,7 @@ safer than a file, and is open source so anyone with a Sleeper or ESPN league ca
 | Slice 3 — waivers (Tuesday) | Provider groundwork done; analysis pending two decisions (below) |
 | Slice 4 — trade targets | Not started |
 | Slice 5 — league-wide lineup audit | Not started |
-| Expert source (Upper Hand) | Access requested; projections stand in meanwhile |
+| Expert source | FantasyAPISource (premium) through the projection gateway; Upper Hand still pending access |
 | Review surface | CLI only |
 | Scheduling | Manual (`ffagent run …`, `--watch` for game days) |
 | Credentials | `.env` |
@@ -84,8 +84,10 @@ where nothing else applies.
 
 ### Expert source
 - [ ] The publisher's answer on Upper Hand access (sanctioned export or endpoint). Then an `UpperHandSource`.
-- [ ] Fallback if that stalls: a manual CSV source (`rank,name,pos,team`) dropped in `data/rankings/`,
-      and optionally FantasyPros consensus (official API, key on request).
+- [x] FantasyAPISource as the first `ExpertSource` behind a gateway with per-player fallback (10/9).
+- [ ] Use FantasyAPISource ECR tiers for close calls and its injuries feed (practice reports, probability of playing) in the injury run.
+- [ ] Nickname/alias table for the few unmatched rows (e.g. Hollywood/Marquise Brown, Bam/Zonovan Knight).
+- [ ] Fallback if Upper Hand stalls: a manual CSV source (`rank,name,pos,team`) dropped in `data/rankings/`.
 - [ ] Freshness gate: a workflow that needs week-N rankings and only finds week N-1 should say so.
 
 ### LLM close-call node (deliberately deferred)

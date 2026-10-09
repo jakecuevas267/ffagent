@@ -44,20 +44,22 @@ def load_context(deps: LineupDeps, ref: LeagueRef, week: int, now: datetime):
     schedule = deps.schedule_for_week(ref.season, week)
     projections = deps.projections.week(ref, week)
     cands = lineup_candidates(team, settings, index, projections, schedule, now)
-    return settings, team, index, schedule, cands
+    return settings, team, index, schedule, cands, projections
 
 
-def proposals_from(result: LineupResult, cands, index, schedule, ref: LeagueRef, week: int, prefix: str) -> list[dict]:
+def proposals_from(result: LineupResult, cands, index, schedule, ref: LeagueRef, week: int, prefix: str,
+                   projections: dict | None = None) -> list[dict]:
     name = lambda pid: index.by_id(pid).name if pid and index.by_id(pid) else (pid or "(empty)")
+    src = lambda pid: f" [{projections[pid].source}]" if projections and pid in projections and projections[pid].source else ""
     by_id = {c.player.id: c for c in cands}
     out = []
     for n, (pin, pout, slot) in enumerate(result.moves, 1):
         cin, cout = by_id[pin], by_id.get(pout) if pout else None
         game = schedule.game_for(cin.player.team) if cin.player.team else None
         opp = next((t for t in game.teams if t != cin.player.team), None) if game else None
-        ev = [f"{name(pin)} projects {cin.points} ({cin.player.position}, {cin.player.team} vs {opp or 'bye'})"]
+        ev = [f"{name(pin)} projects {cin.points}{src(pin)} ({cin.player.position}, {cin.player.team} vs {opp or 'bye'})"]
         if cout:
-            ev.append(f"{name(pout)} projects {cout.points}" + (f", {cout.reason}" if cout.reason else ""))
+            ev.append(f"{name(pout)} projects {cout.points}{src(pout)}" + (f", {cout.reason}" if cout.reason else ""))
         step = f"{slot}: start {name(pin)}" + (f" (bench {name(pout)})" if pout else "")
         out.append(ProposedAction(
             id=f"{prefix}:{n}", kind="lineup_swap", league_key=ref.key,
@@ -68,6 +70,21 @@ def proposals_from(result: LineupResult, cands, index, schedule, ref: LeagueRef,
             evidence=ev, deadline=game.kickoff if game else None,
         ).model_dump(mode="json"))
     return out
+
+
+def sources_line(deps: LineupDeps) -> str | None:
+    report = getattr(deps.projections, "report", None)
+    if report is None:
+        return None
+    line = report.line(getattr(deps.projections, "default_name", "platform"))
+    if report.unresolved:
+        # Few unmatched rows are worth naming (nickname/team mismatches). Many means the platform index
+        # only knows rostered players (ESPN), so the rows are simply free agents: just count them.
+        if len(report.unresolved) <= 5:
+            line += f"; unmatched expert rows: {', '.join(report.unresolved)}"
+        else:
+            line += f"; {len(report.unresolved)} expert rows not on any known roster"
+    return line
 
 
 def summary_from(result: LineupResult, team, index, schedule) -> dict:
@@ -98,11 +115,12 @@ def build_lineup_graph(deps: LineupDeps, checkpointer: BaseCheckpointSaver | Non
         now = datetime.fromisoformat(state["now"]).astimezone(UTC)
         if ref.my_team_id is None:
             return {"error": "no team of mine in this league (commissioner view); lineup workflow skipped", "proposals": []}
-        settings, team, index, schedule, cands = load_context(deps, ref, week, now)
+        settings, team, index, schedule, cands, projections = load_context(deps, ref, week, now)
         result = optimize_lineup(settings.starting_slots, cands, close_margin=deps.close_margin)
         summary = summary_from(result, team, index, schedule)
         summary["pending"] = pending_verification(deps, ref, week, team, index)
-        return {"proposals": proposals_from(result, cands, index, schedule, ref, week, thread_id(ref, week)),
+        summary["sources"] = sources_line(deps)
+        return {"proposals": proposals_from(result, cands, index, schedule, ref, week, thread_id(ref, week), projections),
                 "summary": summary}
 
     def record(state: LineupState) -> dict[str, Any]:

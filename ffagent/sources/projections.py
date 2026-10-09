@@ -19,6 +19,7 @@ class Projection:
     stats: dict[str, float] = field(default_factory=dict)
     team: str | None = None
     opponent: str | None = None
+    source: str | None = None
 
 
 def score(stats: dict[str, float], scoring: dict[str, float]) -> float:

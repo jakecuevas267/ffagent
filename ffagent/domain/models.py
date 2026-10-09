@@ -165,7 +165,7 @@ class Player(BaseModel):
     injury_note: str | None = None
     practice: str | None = None
     active: bool = True
-    external_ids: dict[Platform, str] = Field(default_factory=dict)
+    external_ids: dict[str, str] = Field(default_factory=dict)  # Platform values or other id namespaces (yahoo)
 
     @property
     def position(self) -> Position:

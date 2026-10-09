@@ -42,6 +42,16 @@ WAIVERS = {"WAIVERS_CONTINUOUS": WaiverType.ROLLING, "WAIVERS_TRADITIONAL": Waiv
            "FREEAGENCY": WaiverType.NONE}
 
 
+def _expert_points_key(settings: dict) -> str:
+    """Which source points total matches this league: fp_points_ppr / fp_points_half / fp_points."""
+    kind = (settings.get("scoringSettings", {}).get("playerRankType") or "STANDARD").upper()
+    if "HALF" in kind:
+        return "fp_points_half"
+    if "PPR" in kind:
+        return "fp_points_ppr"
+    return "fp_points"
+
+
 def player_id(espn_id: int | str) -> str:
     return f"espn:{espn_id}"
 
@@ -113,7 +123,7 @@ class ESPNProvider:
         keepers = st.get("draftSettings", {}).get("keeperCount", 0) or 0
         deadline = st.get("tradeSettings", {}).get("deadlineDate")
         return LeagueSettings(
-            num_teams=int(st["size"]), roster_slots=slots, scoring={APPLIED: 1.0},
+            num_teams=int(st["size"]), roster_slots=slots, scoring={APPLIED: 1.0, _expert_points_key(st): 1.0},
             format=Format.KEEPER if keepers else Format.REDRAFT,
             waiver_type=WaiverType.FAAB if faab else WAIVERS.get(aq.get("acquisitionType"), WaiverType.NONE),
             faab_budget=aq.get("acquisitionBudget") if faab else None,

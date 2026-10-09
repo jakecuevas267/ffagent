@@ -39,10 +39,14 @@ Until Upper Hand access is settled, rankings come from platform projections, whi
 |---|---|---|---|
 | Sleeper projections (`api.sleeper.app/projections/nfl/{season}/{week}`) | Undocumented but public, no auth | Sleeper id | Weekly `pts_ppr` / `pts_half_ppr` / `pts_std` plus raw stat lines, so points can be recomputed under any league's scoring. Default source for Sleeper leagues. Verified 2026-10-08. |
 | ESPN projections (`kona_player_info` view) | Unofficial, no auth needed for the public default league | ESPN id | Weekly projected points under ESPN's default scoring sets. Default source for ESPN leagues. Verified 2026-10-08. |
-| FantasyPros consensus rankings | Official REST API, free key on request | Name/team | Expert consensus with tiers; optional plugin once a key exists. |
+| FantasyAPISource | Official REST API, key in `FANTASY_INFORMATION_SOURCE_API_KEY` | Yahoo id, then name/position/team | Weekly projections as stat lines (scored per league on Sleeper; the format's points total on ESPN), ECR rankings with tiers, injuries with practice reports. Premium tier needed: the free tier caps responses at 10 players. Used through the projection gateway when the key is set. |
 | Upper Hand Fantasy | Pending sanctioned access | Name | The manager's trusted source; slots in as another `ExpertSource` without changing the workflows. |
 
 Scoring settings are read from each league automatically, so projections built from raw stat lines are scored per league rather than assuming PPR.
+
+### Projection gateway
+
+`ProjectionGateway(default, expert)` is what the workflows call. It always loads the platform's own projections, then, if an expert source is configured, overlays the expert's numbers for every player it can match. Players the expert does not cover keep the platform number; if the expert call fails (auth, rate limit, network) the run proceeds on platform numbers and says so. Every proposal's evidence names the source behind each number, and each run prints a one-line source report. Kickers and defenses always come from the platform, because expert stat lines for them do not map onto league scoring.
 
 ### Expert source rules
 
@@ -293,11 +297,12 @@ Built as vertical slices, in the order the features are used during a week. Each
 - 2026-10-08: Trade targets run weekly after waivers clear, plus on demand.
 - 2026-10-08: Added the league audit workflow (6.5) for notifying other managers.
 - 2026-10-08: Build order changed to vertical slices: lineup → injury start/sit → waivers → trade targets → league audit. Credentials stay in `.env` and runs stay manual until all five work.
+- 2026-10-09: FantasyAPISource (premium key) is the first expert source, behind a projection gateway with per-player fallback to Sleeper/ESPN. Env var `FANTASY_INFORMATION_SOURCE_API_KEY` (or `_KEY`); absent key means platform defaults, unchanged behavior.
 - 2026-10-09: Sleeper IR/taxi slots come from `settings.reserve_slots` / `taxi_slots`, not `roster_positions` (provider fixed). Added IR housekeeping to the injury run at the manager's request.
 - 2026-10-08: Slice 2 (`ffagent run injury [--watch]`): Doubtful is treated like Out (benched when a replacement exists); Questionable is flagged and listed under "watch" with kickoff time. Healthy starters are pinned so game-day runs never propose projection-only swaps. Decisions are remembered by content fingerprint (kind, slot, in, out) so a rejected swap is not re-asked the same week.
 - 2026-10-08: ESPN provider calls the v3 endpoints directly instead of the `espn-api` library, so fixtures and tests see raw shapes. ESPN leagues use ESPN's own projections (already scored under league rules) rather than the Sleeper feed, avoiding an id crosswalk.
 - 2026-10-08: Slice 1 (`ffagent run lineup`) works end to end against live Sleeper leagues. Optimizer is a greedy transversal-matroid fill (optimal, no LLM). IR/taxi players are never lineup candidates.
-- 2026-10-08: Rankings for the proof of concept come from Sleeper and ESPN projections (no keys); FantasyPros optional; Upper Hand when available.
+- 2026-10-08: Rankings for the proof of concept come from Sleeper and ESPN projections (no keys); FantasyAPISource optional; Upper Hand when available.
 - 2026-10-08: Leagues where the manager is commissioner without a roster are supported; only the league audit runs there.
 - 2026-10-08: M0 verified: ESPN scoreboard feed returns kickoffs and byes; Sleeper player dump has `espn_id` (4,470 active players) and injury/practice fields.
 - 2026-10-08: Sanctioned Upper Hand access has been requested; ingestion decision pending that answer.

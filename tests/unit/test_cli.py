@@ -148,3 +148,22 @@ def test_localize_renders_timestamps_in_user_timezone():
     from ffagent.review.cli import localize
     s = localize("plays at 2026-10-11T17:00:00+00:00 and 2026-10-12T00:20:00Z", ZoneInfo("America/Denver"))
     assert s == "plays at Sun 11:00 MDT and Sun 18:20 MDT"
+
+
+def test_build_lineup_deps_uses_expert_gateway_only_when_key_is_set(monkeypatch):
+    from ffagent.cli import build_lineup_deps
+    from ffagent.config import Config
+    from ffagent.sources.gateway import ProjectionGateway
+
+    provider = SleeperProvider(FakeClient())
+    cfg = Config.model_validate({"season": 2026, "leagues": []})
+    monkeypatch.delenv("FANTASY_INFORMATION_SOURCE_API_KEY", raising=False)
+    monkeypatch.delenv("FANTASY_INFORMATION_SOURCE_KEY", raising=False)
+    deps = build_lineup_deps(cfg, {"sleeper": provider})
+    assert isinstance(deps["sleeper"].projections, ProjectionGateway) and deps["sleeper"].projections.expert is None
+    monkeypatch.setenv("FANTASY_INFORMATION_SOURCE_API_KEY", "test-key")
+    deps = build_lineup_deps(cfg, {"sleeper": provider})
+    assert deps["sleeper"].projections.expert is None  # key without a URL is not usable
+    monkeypatch.setenv("FANTASY_INFORMATION_SOURCE_URL", "https://example.test/v2/json/nfl")
+    deps = build_lineup_deps(cfg, {"sleeper": provider})
+    assert deps["sleeper"].projections.expert is not None and deps["sleeper"].projections.expert.name == "FantasyAPISource"

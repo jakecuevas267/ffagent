@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from datetime import UTC
 
@@ -94,12 +95,22 @@ def build_lineup_deps(config: Config, providers: dict[str, object], store=None):
     from ffagent.graphs.lineup import LineupDeps
     from ffagent.providers.espn import ESPNProjections
     from ffagent.schedule.nfl import fetch_week
+    from ffagent.sources.fantasy_api_source import (
+        FantasyAPISource,
+        FantasyAPISourceClient,
+        api_key_from_env,
+    )
+    from ffagent.sources.gateway import ProjectionGateway
     from ffagent.sources.projections import SleeperProjections
 
+    key = api_key_from_env()
+    fp = FantasyAPISourceClient(key) if key and os.environ.get("FANTASY_INFORMATION_SOURCE_URL") else None
     deps = {}
     for plat, p in providers.items():
-        proj = ESPNProjections(p) if plat == "espn" else SleeperProjections()
-        deps[plat] = LineupDeps(p, proj, fetch_week, store=store)
+        default = ESPNProjections(p) if plat == "espn" else SleeperProjections()
+        expert = FantasyAPISource(fp, lambda ref, p=p: PlayerIndex(p.players())) if fp else None
+        gateway = ProjectionGateway(default, expert, default_name="ESPN" if plat == "espn" else "Sleeper")
+        deps[plat] = LineupDeps(p, gateway, fetch_week, store=store)
     return deps
 
 
@@ -175,6 +186,8 @@ def cmd_run_lineup(config: Config, args) -> int:
         if "__interrupt__" not in out:
             s = out["summary"]
             print(f"\n== {ref.name} — week {week} — {s['team']}: lineup already optimal ({s['projected_after']} projected)")
+            if s.get("sources"):
+                print(f"   {s['sources']}")
             for f in s.get("flags", []):
                 print(f"   ? {f}")
             for line in s.get("pending", []):
@@ -238,6 +251,8 @@ def cmd_run_injury(config: Config, args) -> int:
             header = f"\n== {ref.name} — week {week} — {s['team']} — {now.astimezone(tz).strftime('%a %H:%M %Z')}"
             if quiet:
                 print(header + ": no injury moves needed")
+            if s.get("sources"):
+                print(f"   {s['sources']}")
             for line in s.get("pending", []):
                 print(f"   ! still to do from the lineup review: {line}")
             for c in s.get("changes", []):

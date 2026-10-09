@@ -14,6 +14,7 @@ from ffagent.graphs.lineup import (
     load_context,
     pending_verification,
     proposals_from,
+    sources_line,
     summary_from,
 )
 from ffagent.store.db import fingerprint
@@ -30,7 +31,7 @@ def build_injury_graph(deps: LineupDeps, checkpointer: BaseCheckpointSaver | Non
         now = datetime.fromisoformat(state["now"]).astimezone(UTC)
         if ref.my_team_id is None:
             return {"error": "no team of mine in this league (commissioner view); injury workflow skipped", "proposals": []}
-        settings, team, index, schedule, cands = load_context(deps, ref, week, now)
+        settings, team, index, schedule, cands, projections = load_context(deps, ref, week, now)
         name = lambda pid: index.by_id(pid).name if index.by_id(pid) else pid
 
         snap = snapshot_of(cands, now)
@@ -41,7 +42,7 @@ def build_injury_graph(deps: LineupDeps, checkpointer: BaseCheckpointSaver | Non
             deps.store.save_snapshot(ref.key, week, snap)
 
         result = injury_moves(settings.starting_slots, cands)
-        proposals = proposals_from(result, cands, index, schedule, ref, week, thread_id(ref, week, now))
+        proposals = proposals_from(result, cands, index, schedule, ref, week, thread_id(ref, week, now), projections)
         rejected = deps.store.rejected_fingerprints(ref.key, week) if deps.store is not None else set()
         proposals = [p for p in proposals if fingerprint(p["kind"], p["payload"]) not in rejected]
         for p in proposals:
@@ -64,6 +65,7 @@ def build_injury_graph(deps: LineupDeps, checkpointer: BaseCheckpointSaver | Non
                 proposals.append(pa.model_dump(mode="json"))
 
         summary = summary_from(result, team, index, schedule)
+        summary["sources"] = sources_line(deps)
         summary["changes"] = changes
         summary["pending"] = pending_verification(deps, ref, week, team, index)
         # Starters in later games who are not healthy: worth watching, not acting on yet.

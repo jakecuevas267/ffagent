@@ -20,6 +20,8 @@ def print_review(payload: dict, out=None, tz: ZoneInfo | None = None) -> None:
     lg = payload["league"]
     print(f"\n== {lg.get('name') or lg['league_id']} — week {payload['week']} — {s['team']}", file=out)
     print(f"   projected {s['projected_before']} → {s['projected_after']}  (first kickoff {loc(s['first_kickoff'])})", file=out)
+    if s.get("sources"):
+        print(f"   {s['sources']}", file=out)
     for w in s.get("warnings", []):
         print(f"   ! {w}", file=out)
     for f in s.get("flags", []):

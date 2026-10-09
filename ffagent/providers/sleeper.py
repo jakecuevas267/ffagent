@@ -70,6 +70,8 @@ def map_players(raw: dict[str, dict]) -> list[Player]:
         ext = {}
         if p.get("espn_id"):
             ext[Platform.ESPN] = str(p["espn_id"])
+        if p.get("yahoo_id"):
+            ext["yahoo"] = str(p["yahoo_id"])
         name = p.get("full_name") or f"{p.get('first_name', '')} {p.get('last_name', '')}".strip()
         out.append(Player(
             id=str(pid), name=name, positions=positions, team=p.get("team"),
