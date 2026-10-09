@@ -78,6 +78,51 @@ where nothing else applies.
       `manager_notice` proposal kind.
 - [ ] "Already told them this week" memory, so a manager who leaves a player in is not nagged.
 
+## After the five slices, in this order
+
+### Phase A — Docker instead of venv
+Containerize the CLI so setup is `docker compose run ffagent …` on any machine, and so the UI and
+scheduler later run in the same image.
+- [ ] `Dockerfile` (slim Python base, non-root, the package installed), `compose.yaml` with `data/`
+      as a volume and `.env` passed through; `ffagent.yaml` mounted read-only.
+- [ ] Image build and the offline test suite in CI.
+- [ ] README setup becomes two commands; venv stays documented as the dev path.
+
+### Phase B — UI to trigger everything
+A local web UI (served from the container) that replaces the terminal as the review surface:
+buttons for each workflow per league, the proposal list with approve/reject/edit and the checklist,
+run history and what was decided, status lines (sources, pending claims, verify results), and the
+game-day watch as a live panel.
+- [ ] Thin HTTP layer over the same graphs (the CLI and UI share one code path; the interrupt/resume
+      contract is the API).
+- [ ] Review page per run; decisions persist through the same store.
+- [ ] Settings page for `ffagent.yaml` values that are safe to edit (leads, thresholds, max claims).
+- [ ] Discord notifier can then just deep-link into the UI.
+
+### Phase C — Evals (last, and a long one)
+Comprehensive evaluation of every workflow, deterministic and LLM-judged, with frozen weekly
+snapshots as the datasets. This is the step we spend real time on; nothing ships after it without
+passing it.
+- [ ] **Snapshot recorder:** each real run stores its full inputs (rosters, statuses, projections,
+      schedule, free agents, settings) so any past week can be replayed exactly.
+- [ ] **Deterministic evaluators** (pure, run on every PR):
+      lineup optimality against brute force on small rosters; no invalid players, slots or locks in any
+      proposal; bids never exceed budget or caps; IR rules per league honoured; waiver drops never
+      empty a slot; idempotence (same inputs, same proposals); rejection memory holds; verify logic
+      against recorded transactions.
+- [ ] **Hindsight evaluators** (replay against what actually happened):
+      lineup proposals vs actual points scored; injury swaps vs who actually played; waiver pickups vs
+      their production over the following weeks; trade targets vs subsequent value. Reported as
+      distributions over the season, not pass/fail.
+- [ ] **LLM-as-judge** (opt-in, real model, rubric-scored):
+      rationale cites the evidence shown; no player, team or number appears that is not in the inputs;
+      checklist steps are unambiguous on a phone; close calls are explained as close; manager notices
+      are polite and specific; consistency across leagues for the same situation.
+- [ ] **Harness:** one command runs everything, writes a report per workflow with trends over
+      snapshots, and gates merges on the deterministic set.
+- [ ] **Expert-source evals:** coverage and match rate of the external source against platform rosters
+      per week, alias misses, and value-scale sanity (expert vs platform agreement).
+
 ## Cross-cutting
 
 ### Expert source
@@ -96,7 +141,7 @@ where nothing else applies.
 - [ ] Discord notifier: post the review payload, approve/reject by reaction or reply.
 - [ ] Until then, `--watch` in a terminal is the game-day channel.
 
-### Automation
+### Automation (after Phase B; the UI's run buttons become the scheduler's hooks)
 - [ ] `ffagent due`: print which workflows are due now from the slate calendar and league settings.
 - [ ] `ffagent tick` on cron/launchd: run what's due, idempotent via the run ledger.
 - [ ] Decide where it lives: laptop (misses Sunday mornings when asleep), small VPS, or

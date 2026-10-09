@@ -284,7 +284,10 @@ Built as vertical slices, in the order the features are used during a week. Each
 - **M5 Trade targets.** Need/surplus per team, partner matching, fairness band, drafted messages.
 - **M6 League audit.** Every team's lineup checked for byes, injuries and empty slots; manager notices.
 - **M7 ESPN provider.** *Done 2026-10-08:* settings, teams, lineups, free agents, matchups and ESPN's own league-scored weekly projections, from recorded (scrubbed) fixtures of two real leagues. Transactions view still TODO. Each later slice is checked on both platforms.
-- **Post-v1.** Credentials outside `.env` (keychain / secret manager), scheduler-driven runs, Discord notifier, LLM close-call node where it earns its place.
+- **Phase A Docker.** Containerized CLI, compose with `data/` volume, CI builds the image.
+- **Phase B UI.** Local web UI over the same graphs: trigger workflows, review proposals, history, settings. Replaces the CLI as the review surface; Discord deep-links into it.
+- **Phase C Evals (last, largest).** Snapshot recorder, deterministic evaluators, hindsight replays against actual results, LLM-as-judge rubrics, one-command harness that gates merges. See NEXT_STEPS.md for the full list.
+- **Also post-v1.** Credentials outside `.env` (keychain / secret manager), scheduler-driven runs, LLM close-call node where it earns its place.
 
 ## 10. Open questions
 
@@ -299,6 +302,7 @@ Built as vertical slices, in the order the features are used during a week. Each
 - 2026-10-08: Trade targets run weekly after waivers clear, plus on demand.
 - 2026-10-08: Added the league audit workflow (6.5) for notifying other managers.
 - 2026-10-08: Build order changed to vertical slices: lineup → injury start/sit → waivers → trade targets → league audit. Credentials stay in `.env` and runs stay manual until all five work.
+- 2026-10-09: After the five slices: Docker (Phase A), then a UI to trigger and review everything (Phase B), then comprehensive evals with deterministic and LLM-as-judge evaluators as the final, largest phase (Phase C).
 - 2026-10-09: Slice 3 (`ffagent run waivers`) built on a rest-of-season points-per-game value scale from the expert API's season projections (week 0), platform next-week projections as fallback.
 - 2026-10-09: FantasyAPISource (premium key) is the first expert source, behind a projection gateway with per-player fallback to Sleeper/ESPN. Env var `FANTASY_INFORMATION_SOURCE_API_KEY` (or `_KEY`); absent key means platform defaults, unchanged behavior.
 - 2026-10-09: Sleeper IR/taxi slots come from `settings.reserve_slots` / `taxi_slots`, not `roster_positions` (provider fixed). Added IR housekeeping to the injury run at the manager's request.
