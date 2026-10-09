@@ -284,7 +284,7 @@ Built as vertical slices, in the order the features are used during a week. Each
 
 1. **Upper Hand ingestion.** Preferred: ask the publisher for a sanctioned export or endpoint for subscribers, since this will be open source and should not encourage scraping a paid product. Fallback: a manual-file source the user drops each week's rankings into. Session-based fetching only with explicit permission.
 2. **ESPN and Sleeper lock rules.** Per-game locking is assumed as the default; read it from league settings where exposed and confirm in M1/M2.
-3. **License** for the open-source release.
+3. ~~License~~ MIT, 2026-10-09.
 
 ## 11. Decisions log
 

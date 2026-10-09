@@ -36,3 +36,7 @@ checklist you already approved instead of asking again.
 .venv/bin/pytest                   # fast, offline
 .venv/bin/pytest -m live           # opt-in: real Sleeper API, needs FFAGENT_LIVE_SLEEPER_USER
 ```
+
+## License
+
+MIT. See [LICENSE](LICENSE).

@@ -108,7 +108,7 @@ where nothing else applies.
 - [ ] Detect ESPN cookie expiry early (a nightly auth check) rather than at the moment of need.
 
 ### Open-source readiness
-- [ ] Pick a name (`ffagent` is a placeholder) and a license.
+- [x] Name: `ffagent`. License: MIT. Public at github.com/jakecuevas267/ffagent (10/9).
 - [ ] CI: offline tests on every push; live contract tests nightly in season on the maintainer's leagues only.
 - [ ] README walkthrough for a stranger's league, `ffagent.example.yaml`, contributing notes.
 - [ ] Make sure no fixture ever carries personal data (recorder already scrubs; add a CI check).
