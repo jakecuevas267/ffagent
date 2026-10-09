@@ -23,8 +23,7 @@
   "BN",
   "BN",
   "BN",
-  "BN",
-  "IR"
+  "BN"
  ],
  "settings": {
   "type": 0,
@@ -39,7 +38,8 @@
   "reserve_slots": 1,
   "taxi_slots": 0,
   "leg": 5,
-  "best_ball": 0
+  "best_ball": 0,
+  "reserve_allow_out": 1
  },
  "scoring_settings": {
   "pass_yd": 0.04,

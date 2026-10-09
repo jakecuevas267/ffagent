@@ -1,20 +1,25 @@
 """Interactive review in the terminal: one prompt per proposal, then a checklist."""
 from __future__ import annotations
 
+import re
 import sys
 from collections.abc import Callable
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from ffagent.domain.models import Decision
 
 Prompt = Callable[[str], str]
 
 
-def print_review(payload: dict, out=None) -> None:
+def print_review(payload: dict, out=None, tz: ZoneInfo | None = None) -> None:
     out = out or sys.stdout
+    tz = tz or ZoneInfo('UTC')
+    loc = lambda t: localize(str(t), tz)
     s = payload["summary"]
     lg = payload["league"]
     print(f"\n== {lg.get('name') or lg['league_id']} — week {payload['week']} — {s['team']}", file=out)
-    print(f"   projected {s['projected_before']} → {s['projected_after']}  (first kickoff {s['first_kickoff']})", file=out)
+    print(f"   projected {s['projected_before']} → {s['projected_after']}  (first kickoff {loc(s['first_kickoff'])})", file=out)
     for w in s.get("warnings", []):
         print(f"   ! {w}", file=out)
     for f in s.get("flags", []):
@@ -26,7 +31,7 @@ def print_review(payload: dict, out=None) -> None:
         for e in p["evidence"]:
             print(f"       - {e}", file=out)
         if p["payload"].get("locks_at"):
-            print(f"       locks at {p['payload']['locks_at']}", file=out)
+            print(f"       locks at {loc(p['payload']['locks_at'])}", file=out)
 
 
 def collect_decisions(proposals: list[dict], prompt: Prompt | None = None, auto_approve: bool = False) -> list[dict]:
@@ -57,3 +62,16 @@ def print_checklist(league_name: str, steps: list[str], out=None) -> None:
     print(f"\n   To do in the app for {league_name}:", file=out)
     for s in steps:
         print(f"     [ ] {s}", file=out)
+
+
+_ISO = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})")
+
+
+def localize(text: str, tz: ZoneInfo) -> str:
+    """Render any ISO timestamp inside a message in the user's timezone, e.g. 'Sun 11:00 MDT'."""
+    def _fmt(m):
+        try:
+            return datetime.fromisoformat(m.group(0)).astimezone(tz).strftime("%a %H:%M %Z")
+        except ValueError:
+            return m.group(0)
+    return _ISO.sub(_fmt, text)

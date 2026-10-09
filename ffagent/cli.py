@@ -89,8 +89,8 @@ def cmd_leagues(config: Config, args) -> int:
     return 0
 
 
-def build_lineup_deps(config: Config, providers: dict[str, object]):
-    """Real projections + schedule for the lineup graph. Tests swap this out."""
+def build_lineup_deps(config: Config, providers: dict[str, object], store=None):
+    """Real projections + schedule for the graphs. Tests swap this out."""
     from ffagent.graphs.lineup import LineupDeps
     from ffagent.providers.espn import ESPNProjections
     from ffagent.schedule.nfl import fetch_week
@@ -99,35 +99,59 @@ def build_lineup_deps(config: Config, providers: dict[str, object]):
     deps = {}
     for plat, p in providers.items():
         proj = ESPNProjections(p) if plat == "espn" else SleeperProjections()
-        deps[plat] = LineupDeps(p, proj, fetch_week)
+        deps[plat] = LineupDeps(p, proj, fetch_week, store=store)
     return deps
+
+
+def _select_refs(config: Config, providers, league: str | None) -> list[LeagueRef] | None:
+    refs = resolve_refs(config, providers)
+    if league:
+        refs = [r for r in refs if league.lower() in (r.name.lower(), r.league_id)]
+        if not refs:
+            print(f"no league matches {league!r}", file=sys.stderr)
+            return None
+    return refs
+
+
+def _week_for(deps, ref, override: int | None) -> int:
+    deps.provider.league_name(ref)  # ensures the league is loaded (ESPN reads the week from it)
+    return override or deps.provider.current_week()
+
+
+def _now():
+    from datetime import datetime
+    return datetime.now(UTC)
+
+
+def _sleep(seconds: float) -> None:
+    import time
+    time.sleep(seconds)
 
 
 def cmd_run_lineup(config: Config, args) -> int:
     from datetime import datetime
+    from zoneinfo import ZoneInfo
 
     from langgraph.checkpoint.memory import MemorySaver
     from langgraph.types import Command
 
     from ffagent.graphs.lineup import build_lineup_graph, thread_id
     from ffagent.review.cli import collect_decisions, print_checklist, print_review
-    from ffagent.store.db import checkpointer
+    from ffagent.store.db import Store
 
     providers = build_providers(config)
-    deps_by_platform = build_lineup_deps(config, providers)
-    refs = resolve_refs(config, providers)
-    if args.league:
-        refs = [r for r in refs if args.league.lower() in (r.name.lower(), r.league_id)]
-        if not refs:
-            print(f"no league matches {args.league!r}", file=sys.stderr)
-            return 2
-    now = datetime.fromisoformat(args.now) if args.now else datetime.now(UTC)
-    saver = MemorySaver() if args.dry_run else checkpointer(config.data_dir)
+    tz = ZoneInfo(config.timezone)
+    store = None if args.dry_run else Store(config.data_dir / "ffagent.sqlite")
+    deps_by_platform = build_lineup_deps(config, providers, store)
+    refs = _select_refs(config, providers, args.league)
+    if refs is None:
+        return 2
+    now = datetime.fromisoformat(args.now) if args.now else _now()
+    saver = MemorySaver() if args.dry_run else store.checkpointer()
 
     for ref in refs:
         deps = deps_by_platform[ref.platform]
-        deps.provider.league_name(ref)  # ensures the league is loaded (ESPN reads the week from it)
-        week = args.week or deps.provider.current_week()
+        week = _week_for(deps, ref, args.week)
         graph = build_lineup_graph(deps, saver)
         cfg = {"configurable": {"thread_id": thread_id(ref, week)}}
         prior = graph.get_state(cfg)
@@ -153,14 +177,96 @@ def cmd_run_lineup(config: Config, args) -> int:
             print(f"\n== {ref.name} — week {week} — {s['team']}: lineup already optimal ({s['projected_after']} projected)")
             for f in s.get("flags", []):
                 print(f"   ? {f}")
+            for line in s.get("pending", []):
+                print(f"   ! still to do from an earlier review: {line}")
             continue
         payload = out["__interrupt__"][0].value
-        print_review(payload)
+        print_review(payload, tz=tz)
         if args.dry_run:
             continue
         decisions = collect_decisions(payload["proposals"], auto_approve=args.auto_approve)
         final = graph.invoke(Command(resume=decisions), cfg)
         print_checklist(ref.name, final.get("checklist", []))
+    return 0
+
+
+def cmd_run_injury(config: Config, args) -> int:
+    from datetime import datetime, timedelta
+    from zoneinfo import ZoneInfo
+
+    from langgraph.checkpoint.memory import MemorySaver
+    from langgraph.types import Command
+
+    from ffagent.graphs.injury import build_injury_graph, thread_id
+    from ffagent.review.cli import collect_decisions, localize, print_checklist, print_review
+    from ffagent.store.db import Store
+
+    providers = build_providers(config)
+    tz = ZoneInfo(config.timezone)
+    store = None if args.dry_run else Store(config.data_dir / "ffagent.sqlite")
+    deps_by_platform = build_lineup_deps(config, providers, store)
+    refs = _select_refs(config, providers, args.league)
+    if refs is None:
+        return 2
+    saver = MemorySaver() if args.dry_run else store.checkpointer()
+
+    def one_pass(now: datetime) -> datetime | None:
+        """Run every league once; return the last kickoff still ahead today (for --watch), else None."""
+        last_ahead = None
+        for ref in refs:
+            deps = deps_by_platform[ref.platform]
+            if hasattr(deps.provider, "refresh"):
+                deps.provider.refresh()  # injuries change by the minute on game day
+            week = _week_for(deps, ref, args.week)
+            graph = build_injury_graph(deps, saver)
+            cfg = {"configurable": {"thread_id": thread_id(ref, week, now)}}
+            try:
+                out = graph.invoke({"league": ref.model_dump(mode="json"), "week": week, "now": now.isoformat()}, cfg)
+            except AuthExpired as e:
+                print(f"{ref.name}: {e}", file=sys.stderr)
+                continue
+            if out.get("error"):
+                print(f"\n== {ref.name}: {out['error']}")
+                continue
+            s = out["summary"]
+            sched = deps.schedule_for_week(ref.season, week)
+            ahead = [g.kickoff for g in sched.games
+                     if g.kickoff > now and g.kickoff.astimezone(now.tzinfo).date() == now.date()]
+            if ahead:
+                last_ahead = max(last_ahead or max(ahead), max(ahead))
+            quiet = "__interrupt__" not in out
+            header = f"\n== {ref.name} — week {week} — {s['team']} — {now.astimezone(tz).strftime('%a %H:%M %Z')}"
+            if quiet:
+                print(header + ": no injury moves needed")
+            for line in s.get("pending", []):
+                print(f"   ! still to do from the lineup review: {line}")
+            for c in s.get("changes", []):
+                print(f"   Δ {c}")
+            for w in s.get("warnings", []):
+                print(f"   ! {w}")
+            for w in s.get("watch", []):
+                print(f"   ? watch: {localize(w, tz)}")
+            if quiet:
+                continue
+            payload = out["__interrupt__"][0].value
+            print_review(payload, tz=tz)
+            if args.dry_run:
+                continue
+            decisions = collect_decisions(payload["proposals"], auto_approve=args.auto_approve)
+            final = graph.invoke(Command(resume=decisions), cfg)
+            print_checklist(ref.name, final.get("checklist", []))
+        return last_ahead
+
+    now = datetime.fromisoformat(args.now) if args.now else _now()
+    last = one_pass(now)
+    if not args.watch:
+        return 0
+    interval = timedelta(minutes=args.interval)
+    while last is not None and now < last + timedelta(minutes=5):
+        _sleep(interval.total_seconds())
+        now = (now + interval) if args.now else _now()
+        last = one_pass(now) or last
+    print("\nwatch finished: no more kickoffs today")
     return 0
 
 
@@ -174,13 +280,15 @@ def main(argv: list[str] | None = None) -> int:
     lg.add_argument("--json", action="store_true")
     lg.add_argument("--all", action="store_true", help="show every team's roster, not just mine")
     run = sub.add_parser("run", help="run a workflow now")
-    run.add_argument("workflow", choices=["lineup"])
+    run.add_argument("workflow", choices=["lineup", "injury"])
     run.add_argument("--league", help="league name or id; default all")
     run.add_argument("--week", type=int)
     run.add_argument("--now", help="ISO timestamp override (testing)")
     run.add_argument("--dry-run", action="store_true", help="show proposals, do not ask or record")
     run.add_argument("--auto-approve", action="store_true")
     run.add_argument("--again", action="store_true", help="redo a league already reviewed this week")
+    run.add_argument("--watch", action="store_true", help="injury: keep checking until the day's last kickoff")
+    run.add_argument("--interval", type=int, default=15, help="injury --watch: minutes between checks")
     args = ap.parse_args(argv)
 
     try:
@@ -192,6 +300,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_leagues(config, args)
     if args.cmd == "run" and args.workflow == "lineup":
         return cmd_run_lineup(config, args)
+    if args.cmd == "run" and args.workflow == "injury":
+        return cmd_run_injury(config, args)
     return 1
 
 

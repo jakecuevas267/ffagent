@@ -145,6 +145,10 @@ class LeagueSettings(BaseModel):
     trade_deadline_week: int | None = None
     trade_deadline: datetime | None = None
     playoff_start_week: int | None = None
+    ir_statuses: set[InjuryStatus] = Field(default_factory=lambda: {InjuryStatus.IR, InjuryStatus.PUP})
+
+    def ir_eligible(self, status: InjuryStatus) -> bool:
+        return status in self.ir_statuses
 
     @property
     def starting_slots(self) -> list[Slot]:

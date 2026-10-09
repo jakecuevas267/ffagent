@@ -62,7 +62,7 @@ def _lineup_env(tmp_path, monkeypatch):
     provider = SleeperProvider(FakeClient())
     monkeypatch.setattr("ffagent.cli.build_providers", lambda config: {"sleeper": provider})
     monkeypatch.setattr("ffagent.cli.build_lineup_deps",
-                        lambda config, providers: {"sleeper": LineupDeps(provider, FakeProjections(proj), lambda s, w: sched)})
+                        lambda config, providers, store=None: {"sleeper": LineupDeps(provider, FakeProjections(proj), lambda s, w: sched, store=store)})
     return cfg
 
 
@@ -90,3 +90,61 @@ def test_run_lineup_auto_approve(tmp_path, capsys, monkeypatch):
     cfg = _lineup_env(tmp_path, monkeypatch)
     assert main(["--config", str(cfg), "run", "lineup", "--auto-approve", "--now", "2026-10-07T18:00:00-06:00"]) == 0
     assert "To do in the app" in capsys.readouterr().out
+
+
+def _injury_env(tmp_path, monkeypatch, hurt=None):
+    from ffagent.domain.models import InjuryStatus
+    from ffagent.graphs.lineup import LineupDeps
+    from ffagent.schedule.nfl import parse_scoreboard
+    from ffagent.sources.projections import parse_projections
+    from tests.graph.test_lineup_graph import FakeProjections
+
+    cfg = tmp_path / "ffagent.yaml"
+    cfg.write_text('season: 2026\ndata_dir: "%s"\nleagues:\n  - {platform: sleeper, league_id: "1000000000000000001", me: alice}\n'
+                   % (tmp_path / "data"))
+    sched = parse_scoreboard(json.loads((FIX.parent / "espn" / "scoreboard_2026_w5.json").read_text()))
+    proj = parse_projections(json.loads((FIX / "projections_w5.json").read_text()))
+    provider = SleeperProvider(FakeClient())
+    for p in provider.players():
+        if p.id in (hurt or []):
+            p.injury_status = InjuryStatus.OUT
+        if p.id == "5872":
+            p.injury_status = InjuryStatus.IR  # fixture parks a healthy player in IR; keep IR quiet here
+    monkeypatch.setattr("ffagent.cli.build_providers", lambda config: {"sleeper": provider})
+    monkeypatch.setattr("ffagent.cli.build_lineup_deps",
+                        lambda config, providers, store=None: {"sleeper": LineupDeps(provider, FakeProjections(proj), lambda s, w: sched, store=store)})
+    return cfg
+
+
+def test_run_injury_quiet_when_healthy(tmp_path, capsys, monkeypatch):
+    cfg = _injury_env(tmp_path, monkeypatch)
+    assert main(["--config", str(cfg), "run", "injury", "--now", "2026-10-11T09:00:00-06:00"]) == 0
+    assert "no injury moves needed" in capsys.readouterr().out
+
+
+def test_run_injury_proposes_and_records(tmp_path, capsys, monkeypatch):
+    cfg = _injury_env(tmp_path, monkeypatch, hurt=["6813"])
+    monkeypatch.setattr("builtins.input", lambda prompt="": "a")
+    assert main(["--config", str(cfg), "run", "injury", "--now", "2026-10-11T09:00:00-06:00"]) == 0
+    out = capsys.readouterr().out
+    assert "Jonathan Taylor is out" in out and "To do in the app" in out
+
+
+def test_watch_loops_until_last_kickoff(tmp_path, capsys, monkeypatch):
+    cfg = _injury_env(tmp_path, monkeypatch)
+    sleeps = []
+    monkeypatch.setattr("ffagent.cli._sleep", lambda s: sleeps.append(s))
+    # Sunday 12:00 MT: games at 11:00, 14:05, 14:25 and 18:20 MT. Last kickoff 18:20 → ~7 more checks at 60 min.
+    assert main(["--config", str(cfg), "run", "injury", "--watch", "--interval", "60",
+                 "--now", "2026-10-11T12:00:00-06:00"]) == 0
+    out = capsys.readouterr().out
+    assert "watch finished" in out
+    assert 6 <= len(sleeps) <= 8 and all(s == 3600 for s in sleeps)
+
+
+def test_localize_renders_timestamps_in_user_timezone():
+    from zoneinfo import ZoneInfo
+
+    from ffagent.review.cli import localize
+    s = localize("plays at 2026-10-11T17:00:00+00:00 and 2026-10-12T00:20:00Z", ZoneInfo("America/Denver"))
+    assert s == "plays at Sun 11:00 MDT and Sun 18:20 MDT"

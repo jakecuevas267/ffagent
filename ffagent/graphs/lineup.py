@@ -1,41 +1,34 @@
-"""Lineup workflow: load → analyze → human_review (interrupt) → checklist.
-
-One graph invocation per (league, week). The thread id makes reruns resume instead of duplicating.
-"""
+"""Lineup workflow (Thursday lock). One thread per (league, week); reruns resume rather than duplicate."""
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import Any, TypedDict
+from typing import Any
 
 from langgraph.checkpoint.base import BaseCheckpointSaver
-from langgraph.graph import END, START, StateGraph
-from langgraph.types import interrupt
 
 from ffagent.analysis.context import lineup_candidates
-from ffagent.analysis.lineup import optimize_lineup
+from ffagent.analysis.injuries import verify_lineup
+from ffagent.analysis.lineup import LineupResult, optimize_lineup
 from ffagent.domain.identity import PlayerIndex
-from ffagent.domain.models import Decision, LeagueRef, ProposedAction
+from ffagent.domain.models import LeagueRef, ProposedAction
+from ffagent.graphs.common import ReviewState, build_review_graph
 
-
-class LineupState(TypedDict, total=False):
-    league: dict            # LeagueRef
-    week: int
-    now: str                # ISO timestamp; injected so runs are reproducible
-    summary: dict           # before/after points, flags, warnings, close calls
-    proposals: list[dict]   # ProposedAction
-    decisions: list[dict]   # Decision
-    checklist: list[str]
-    error: str
+LineupState = ReviewState
 
 
 class LineupDeps:
-    """Everything the graph needs from the outside world, so tests can hand in fixtures."""
+    """Everything the graphs need from the outside world, so tests can hand in fixtures."""
 
-    def __init__(self, provider, projections, schedule_for_week, close_margin: float = 1.0):
+    def __init__(self, provider, projections, schedule_for_week, close_margin: float = 1.0, store=None):
         self.provider = provider
         self.projections = projections          # .week(ref, week) -> dict[player_id, Projection]
         self.schedule_for_week = schedule_for_week  # (season, week) -> WeekSchedule
         self.close_margin = close_margin
+        self.store = store                      # optional ffagent.store.db.Store
+
+
+def thread_id(ref: LeagueRef, week: int) -> str:
+    return f"lineup:{ref.key}:{ref.season}:{week}"
 
 
 def _name_ids(text: str, name) -> str:
@@ -44,8 +37,58 @@ def _name_ids(text: str, name) -> str:
     return f"{name(head)} {rest}" if name(head) != head else text
 
 
-def thread_id(ref: LeagueRef, week: int) -> str:
-    return f"lineup:{ref.key}:{ref.season}:{week}"
+def load_context(deps: LineupDeps, ref: LeagueRef, week: int, now: datetime):
+    settings = deps.provider.settings(ref)
+    team = next(t for t in deps.provider.teams(ref) if t.id == ref.my_team_id)
+    index = PlayerIndex(deps.provider.players())
+    schedule = deps.schedule_for_week(ref.season, week)
+    projections = deps.projections.week(ref, week)
+    cands = lineup_candidates(team, settings, index, projections, schedule, now)
+    return settings, team, index, schedule, cands
+
+
+def proposals_from(result: LineupResult, cands, index, schedule, ref: LeagueRef, week: int, prefix: str) -> list[dict]:
+    name = lambda pid: index.by_id(pid).name if pid and index.by_id(pid) else (pid or "(empty)")
+    by_id = {c.player.id: c for c in cands}
+    out = []
+    for n, (pin, pout, slot) in enumerate(result.moves, 1):
+        cin, cout = by_id[pin], by_id.get(pout) if pout else None
+        game = schedule.game_for(cin.player.team) if cin.player.team else None
+        opp = next((t for t in game.teams if t != cin.player.team), None) if game else None
+        ev = [f"{name(pin)} projects {cin.points} ({cin.player.position}, {cin.player.team} vs {opp or 'bye'})"]
+        if cout:
+            ev.append(f"{name(pout)} projects {cout.points}" + (f", {cout.reason}" if cout.reason else ""))
+        step = f"{slot}: start {name(pin)}" + (f" (bench {name(pout)})" if pout else "")
+        out.append(ProposedAction(
+            id=f"{prefix}:{n}", kind="lineup_swap", league_key=ref.key,
+            payload={"slot": slot, "player_in": pin, "player_in_name": name(pin), "player_out": pout,
+                     "player_out_name": name(pout) if pout else None,
+                     "locks_at": game.kickoff.isoformat() if game else None, "step": step},
+            rationale=f"Start {name(pin)} at {slot}" + (f" over {name(pout)}" if pout else " (slot is empty)"),
+            evidence=ev, deadline=game.kickoff if game else None,
+        ).model_dump(mode="json"))
+    return out
+
+
+def summary_from(result: LineupResult, team, index, schedule) -> dict:
+    name = lambda pid: index.by_id(pid).name if pid and index.by_id(pid) else (pid or "(empty)")
+    return {"team": team.name, "projected_before": round(result.projected_before, 2),
+            "projected_after": round(result.projected_after, 2),
+            "warnings": [_name_ids(w, name) for w in result.warnings],
+            "flags": [f"{name(pid)} is {status} ({reason})" for pid, status, reason in result.flags],
+            "close_calls": [f"{name(a)} over {name(b)} at {s} by {m:.1f}" for a, b, s, m in result.close_calls],
+            "first_kickoff": schedule.first_kickoff.isoformat()}
+
+
+def pending_verification(deps: LineupDeps, ref: LeagueRef, week: int, team, index) -> list[str]:
+    """Approved lineup moves from earlier this week that are not reflected in the live lineup."""
+    if deps.store is None or ref.my_team_id is None:
+        return []
+    approved = deps.store.approved_payloads(ref.key, week, "lineup")
+    starters: dict = {}
+    for e in team.starters:
+        starters.setdefault(e.slot, []).append(e.player_id)
+    return [p.get("step") or f"{p['slot']}: start {p['player_in_name']}" for p in verify_lineup(approved, starters)]
 
 
 def build_lineup_graph(deps: LineupDeps, checkpointer: BaseCheckpointSaver | None = None):
@@ -55,72 +98,18 @@ def build_lineup_graph(deps: LineupDeps, checkpointer: BaseCheckpointSaver | Non
         now = datetime.fromisoformat(state["now"]).astimezone(UTC)
         if ref.my_team_id is None:
             return {"error": "no team of mine in this league (commissioner view); lineup workflow skipped", "proposals": []}
-        settings = deps.provider.settings(ref)
-        team = next(t for t in deps.provider.teams(ref) if t.id == ref.my_team_id)
-        index = PlayerIndex(deps.provider.players())
-        schedule = deps.schedule_for_week(ref.season, week)
-        projections = deps.projections.week(ref, week)
-        cands = lineup_candidates(team, settings, index, projections, schedule, now)
+        settings, team, index, schedule, cands = load_context(deps, ref, week, now)
         result = optimize_lineup(settings.starting_slots, cands, close_margin=deps.close_margin)
+        summary = summary_from(result, team, index, schedule)
+        summary["pending"] = pending_verification(deps, ref, week, team, index)
+        return {"proposals": proposals_from(result, cands, index, schedule, ref, week, thread_id(ref, week)),
+                "summary": summary}
 
-        name = lambda pid: index.by_id(pid).name if pid and index.by_id(pid) else (pid or "(empty)")
-        by_id = {c.player.id: c for c in cands}
-        proposals = []
-        for n, (pin, pout, slot) in enumerate(result.moves, 1):
-            cin, cout = by_id[pin], by_id.get(pout) if pout else None
-            game = schedule.game_for(cin.player.team) if cin.player.team else None
-            opp = next((t for t in game.teams if t != cin.player.team), None) if game else None
-            ev = [f"{name(pin)} projects {cin.points} ({cin.player.position}, {cin.player.team} vs {opp or 'bye'})"]
-            if cout:
-                ev.append(f"{name(pout)} projects {cout.points}" + (f", {cout.reason}" if cout.reason else ""))
-            proposals.append(ProposedAction(
-                id=f"{thread_id(ref, week)}:{n}", kind="lineup_swap", league_key=ref.key,
-                payload={"slot": slot, "player_in": pin, "player_in_name": name(pin),
-                         "player_out": pout, "player_out_name": name(pout) if pout else None,
-                         "locks_at": game.kickoff.isoformat() if game else None},
-                rationale=f"Start {name(pin)} at {slot}" + (f" over {name(pout)}" if pout else " (slot is empty)"),
-                evidence=ev, deadline=game.kickoff if game else None,
-            ).model_dump(mode="json"))
-        summary = {"team": team.name, "projected_before": round(result.projected_before, 2),
-                   "projected_after": round(result.projected_after, 2),
-                   "warnings": [_name_ids(w, name) for w in result.warnings],
-                   "flags": [f"{name(pid)} is {status} ({reason})" for pid, status, reason in result.flags],
-                   "close_calls": [f"{name(a)} over {name(b)} at {s} by {m:.1f}" for a, b, s, m in result.close_calls],
-                   "first_kickoff": schedule.first_kickoff.isoformat()}
-        return {"proposals": proposals, "summary": summary}
+    def record(state: LineupState) -> dict[str, Any]:
+        if deps.store is not None and state.get("proposals"):
+            ref = LeagueRef.model_validate(state["league"])
+            deps.store.record_decisions(ref.key, state["week"], "lineup", state["proposals"], state.get("decisions", []),
+                                        now=datetime.fromisoformat(state["now"]))
+        return {}
 
-    def human_review(state: LineupState) -> dict[str, Any]:
-        if not state.get("proposals"):
-            return {"decisions": []}
-        raw = interrupt({"league": state["league"], "week": state["week"],
-                         "summary": state["summary"], "proposals": state["proposals"]})
-        decisions = [Decision.model_validate(d).model_dump(mode="json") for d in raw]
-        ids = {p["id"] for p in state["proposals"]}
-        missing = ids - {d["action_id"] for d in decisions}
-        if missing:
-            raise ValueError(f"no decision for {sorted(missing)}")
-        return {"decisions": decisions}
-
-    def checklist(state: LineupState) -> dict[str, Any]:
-        verdicts = {d["action_id"]: d for d in state.get("decisions", [])}
-        steps = []
-        for p in state.get("proposals", []):
-            d = verdicts.get(p["id"])
-            if d and d["verdict"] in ("approved", "edited"):
-                pl = p["payload"] | (d.get("edited_payload") or {})
-                out = f" (bench {pl['player_out_name']})" if pl.get("player_out") else ""
-                steps.append(f"{pl['slot']}: start {pl['player_in_name']}{out}")
-        return {"checklist": steps}
-
-    def route(state: LineupState) -> str:
-        return END if state.get("error") else "human_review"
-
-    g = StateGraph(LineupState)
-    g.add_node("analyze", analyze)
-    g.add_node("human_review", human_review)
-    g.add_node("checklist", checklist)
-    g.add_edge(START, "analyze")
-    g.add_conditional_edges("analyze", route, {END: END, "human_review": "human_review"})
-    g.add_edge("human_review", "checklist")
-    g.add_edge("checklist", END)
-    return g.compile(checkpointer=checkpointer)
+    return build_review_graph(analyze, checkpointer, record)

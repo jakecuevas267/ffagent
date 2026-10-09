@@ -200,6 +200,10 @@ Output: one `manager_notice` per affected team with the issues, the obvious benc
 
 Deterministic: all of it. No LLM is needed beyond phrasing the message, and the message template works without one.
 
+### 6.3a IR housekeeping (part of injury watch)
+
+Every injury run also checks the IR slots: a player sitting in IR whose status is no longer IR-eligible is proposed for activation (both platforms block other roster moves until this is fixed), and an IR-eligible player on the active roster is proposed for an open IR slot, starters first. Eligibility follows each league's rules: Sleeper exposes `reserve_allow_out/doubtful/sus/na/dnr/cov` flags and `reserve_slots`; ESPN defaults to IR-designated players only. Leagues without IR slots get no IR proposals. Taxi squads are left alone.
+
 ## 7. Configuration
 
 ```yaml
@@ -269,7 +273,7 @@ Built as vertical slices, in the order the features are used during a week. Each
 - **M0 Spikes.** Kickoff feed and ID crosswalk. *Done 2026-10-08.*
 - **M1 Foundation.** Domain models, identity, Sleeper provider, config, `ffagent leagues`. *Done 2026-10-08 (offline tests); live check against real leagues pending.*
 - **M2 Lineup (Thursday lock).** Slate calendar, projections source, lineup optimizer, first graph with interrupt, CLI review, checklist. *Done 2026-10-08 on Sleeper; verify-on-next-run and ESPN still to come.* First real use: week 6.
-- **M3 Injury start/sit (game days).** Status snapshots and diffs, per-slate runs, replacement search, `--watch` loop for a game day.
+- **M3 Injury start/sit (game days).** Status snapshots and diffs, necessary-moves-only replacement search, rejected-move memory for the week, verification of approved lineup moves, `--watch` loop for a game day. *Built 2026-10-08; first live use pending a game day.*
 - **M4 Waivers (Tuesday).** Free-agent ranking, need scoring, drop candidates, FAB sizing, fallback chains.
 - **M5 Trade targets.** Need/surplus per team, partner matching, fairness band, drafted messages.
 - **M6 League audit.** Every team's lineup checked for byes, injuries and empty slots; manager notices.
@@ -289,6 +293,8 @@ Built as vertical slices, in the order the features are used during a week. Each
 - 2026-10-08: Trade targets run weekly after waivers clear, plus on demand.
 - 2026-10-08: Added the league audit workflow (6.5) for notifying other managers.
 - 2026-10-08: Build order changed to vertical slices: lineup → injury start/sit → waivers → trade targets → league audit. Credentials stay in `.env` and runs stay manual until all five work.
+- 2026-10-09: Sleeper IR/taxi slots come from `settings.reserve_slots` / `taxi_slots`, not `roster_positions` (provider fixed). Added IR housekeeping to the injury run at the manager's request.
+- 2026-10-08: Slice 2 (`ffagent run injury [--watch]`): Doubtful is treated like Out (benched when a replacement exists); Questionable is flagged and listed under "watch" with kickoff time. Healthy starters are pinned so game-day runs never propose projection-only swaps. Decisions are remembered by content fingerprint (kind, slot, in, out) so a rejected swap is not re-asked the same week.
 - 2026-10-08: ESPN provider calls the v3 endpoints directly instead of the `espn-api` library, so fixtures and tests see raw shapes. ESPN leagues use ESPN's own projections (already scored under league rules) rather than the Sleeper feed, avoiding an id crosswalk.
 - 2026-10-08: Slice 1 (`ffagent run lineup`) works end to end against live Sleeper leagues. Optimizer is a greedy transversal-matroid fill (optimal, no LLM). IR/taxi players are never lineup candidates.
 - 2026-10-08: Rankings for the proof of concept come from Sleeper and ESPN projections (no keys); FantasyPros optional; Upper Hand when available.

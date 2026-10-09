@@ -169,3 +169,14 @@ class TestFindMyTeam:
 
     def test_commissioner_without_roster_is_none(self, provider, ref):
         assert provider.find_my_team(ref, "commish") is None
+
+
+class TestIRRules:
+    def test_ir_slots_come_from_settings_not_roster_positions(self, provider, ref):
+        s = provider.settings(ref)
+        assert s.roster_slots[Slot.IR] == 1 and Slot.TAXI not in s.roster_slots
+
+    def test_ir_statuses_follow_league_flags(self, provider, ref):
+        s = provider.settings(ref)  # fixture: reserve_allow_out=1, nothing else
+        assert s.ir_eligible(InjuryStatus.IR) and s.ir_eligible(InjuryStatus.OUT)
+        assert not s.ir_eligible(InjuryStatus.DOUBTFUL) and not s.ir_eligible(InjuryStatus.QUESTIONABLE)

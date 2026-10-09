@@ -128,6 +128,17 @@ class SleeperProvider:
         for s in lg["roster_positions"]:
             slot = Slot(s)
             slots[slot] = slots.get(slot, 0) + 1
+        # IR and taxi are not in roster_positions; they are counts in settings.
+        if st.get("reserve_slots"):
+            slots[Slot.IR] = int(st["reserve_slots"])
+        if st.get("taxi_slots"):
+            slots[Slot.TAXI] = int(st["taxi_slots"])
+        ir = {InjuryStatus.IR, InjuryStatus.PUP}
+        for flag, status in (("reserve_allow_out", InjuryStatus.OUT), ("reserve_allow_doubtful", InjuryStatus.DOUBTFUL),
+                             ("reserve_allow_sus", InjuryStatus.SUSPENDED), ("reserve_allow_na", InjuryStatus.NA),
+                             ("reserve_allow_dnr", InjuryStatus.NA), ("reserve_allow_cov", InjuryStatus.NA)):
+            if st.get(flag):
+                ir.add(status)
         waiver = _WAIVER_TYPES.get(st.get("waiver_type"), WaiverType.NONE)
         return LeagueSettings(
             num_teams=lg.get("total_rosters") or st.get("num_teams"),
@@ -138,6 +149,7 @@ class SleeperProvider:
             faab_budget=st.get("waiver_budget") if waiver is WaiverType.FAAB else None,
             trade_deadline_week=st.get("trade_deadline") or None,
             playoff_start_week=st.get("playoff_week_start") or None,
+            ir_statuses=ir,
         )
 
     def teams(self, ref: LeagueRef) -> list[Team]:

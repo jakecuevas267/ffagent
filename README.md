@@ -23,6 +23,8 @@ cp .env.example .env                   # ESPN cookies, LLM key
 .venv/bin/ffagent run lineup --dry-run           # what it would propose, no questions asked
 .venv/bin/ffagent run lineup                     # review each proposal, get a checklist
 .venv/bin/ffagent run lineup --league "Name" --again   # redo one league this week
+.venv/bin/ffagent run injury                     # game day: swaps for Out/Doubtful starters, status changes
+.venv/bin/ffagent run injury --watch --interval 15   # keep checking until the day's last kickoff
 ```
 
 Reviews are remembered per league and week in `data/ffagent.sqlite`, so re-running shows the
