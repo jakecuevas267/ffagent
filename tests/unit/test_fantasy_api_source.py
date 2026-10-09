@@ -146,3 +146,18 @@ def test_client_disk_cache_honours_ttl(tmp_path):
     c3 = FantasyAPISourceClient("k", http=http, cache_dir=tmp_path, cache_hours=6, clock=lambda: now[0] + timedelta(hours=7))
     c3.projections(2026, 5, "RB")
     assert len(hits) == 2 and c3.calls == 1
+
+
+def test_client_throttles_to_one_request_per_second(tmp_path):
+    import httpx
+
+    from ffagent.sources.fantasy_api_source import FantasyAPISourceClient
+
+    http = httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(200, json={"players": []})), base_url="https://x/nfl")
+    sleeps = []
+    c = FantasyAPISourceClient("k", http=http, min_interval=1.0, sleep=sleeps.append)
+    for pos in ("QB", "RB", "WR", "TE"):
+        c.projections(2026, 5, pos)
+    assert c.calls == 4 and len(sleeps) == 3 and all(0 < s <= 1.0 for s in sleeps)
+    c.projections(2026, 5, "QB")  # cached: no call, no sleep
+    assert c.calls == 4 and len(sleeps) == 3

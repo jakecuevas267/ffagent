@@ -8,6 +8,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import time
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -40,7 +41,8 @@ def api_key_from_env() -> str | None:
 
 class FantasyAPISourceClient:
     def __init__(self, api_key: str, base_url: str | None = None, http: httpx.Client | None = None,
-                 cache_dir: Path | None = None, cache_hours: float = 6.0, clock=None):
+                 cache_dir: Path | None = None, cache_hours: float = 6.0, clock=None,
+                 min_interval: float = 1.1, sleep=None):
         base_url = base_url or os.environ.get(URL_VAR)
         if http is None and not base_url:
             raise RuntimeError(f"{URL_VAR} is not set; it must hold the data API base URL")
@@ -50,6 +52,9 @@ class FantasyAPISourceClient:
         self._ttl = timedelta(hours=cache_hours)
         self._clock = clock or (lambda: datetime.now(UTC))
         self.calls = 0  # network calls made by this client; cache hits do not count
+        self._min_interval = min_interval  # seconds between network calls (provider terms: 1 request/second)
+        self._sleep = sleep or time.sleep
+        self._last_call: float | None = None
 
     def _disk_path(self, key: tuple) -> Path | None:
         if self._cache_dir is None:
@@ -71,7 +76,12 @@ class FantasyAPISourceClient:
                     return blob["data"]
             except (ValueError, KeyError):
                 pass
+        if self._last_call is not None:
+            wait = self._min_interval - (time.monotonic() - self._last_call)
+            if wait > 0:
+                self._sleep(wait)
         r = self._http.get(path, params=params)
+        self._last_call = time.monotonic()
         self.calls += 1
         r.raise_for_status()
         data = r.json()
