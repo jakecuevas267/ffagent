@@ -140,7 +140,7 @@ class TestSpeculative:
         from ffagent.analysis.waivers import speculative_adds
         mixon = V("mixon", Position.RB, 0.0)
         mixon.player.team = None
-        repl = {Position.RB: 5.0, Position.WR: 6.0, Position.QB: 15.0}
+        repl = {Position.RB: 5.0, Position.WR: 8.0, Position.QB: 15.0}  # wr4 (5 ppg) is well below the 8-ppg wire
         claims = speculative_adds([self._trend("mixon")], {"mixon": mixon}, roster, settings(), 100, repl)
         assert len(claims) == 1
         c = claims[0]
@@ -161,7 +161,7 @@ class TestSpeculative:
     def test_priority_league_flier_has_no_bid(self, roster):
         from ffagent.analysis.waivers import speculative_adds
         mixon = V("mixon", Position.RB, 0.0)
-        repl = {Position.WR: 6.0}
+        repl = {Position.WR: 8.0}
         claims = speculative_adds([self._trend("mixon")], {"mixon": mixon}, roster, settings(WaiverType.ROLLING), None, repl)
         assert claims and claims[0].bid is None and not claims[0].use_priority
 
@@ -179,3 +179,9 @@ class TestDeadSpot:
     def test_near_worthless_is_dead_regardless(self):
         from ffagent.analysis.waivers import is_dead_spot
         assert is_dead_spot(V("wr9", Position.WR, 1.5, Slot.BN), {})
+
+    def test_injured_star_is_not_a_dead_spot(self):
+        from ffagent.analysis.waivers import is_dead_spot
+        star = V("qb1", Position.QB, 7.0, Slot.BN, injury=InjuryStatus.OUT)
+        star.raw_value = 19.0
+        assert not is_dead_spot(star, {Position.QB: 17.0})

@@ -9,8 +9,10 @@ from dataclasses import dataclass, field
 from ffagent.analysis.lineup import Candidate, optimize_lineup
 from ffagent.domain.models import InjuryStatus, LeagueSettings, Player, Slot, WaiverType
 
-INJURY_DISCOUNT = {InjuryStatus.HEALTHY: 1.0, InjuryStatus.QUESTIONABLE: 0.9, InjuryStatus.DOUBTFUL: 0.7,
-                   InjuryStatus.OUT: 0.4, InjuryStatus.SUSPENDED: 0.4, InjuryStatus.IR: 0.2, InjuryStatus.PUP: 0.2,
+# Rest-of-season discounts: a status is mostly about this week, so the haircut is mild for short
+# absences and steep only for the designations that mean weeks (IR/PUP) or no team (NA).
+INJURY_DISCOUNT = {InjuryStatus.HEALTHY: 1.0, InjuryStatus.QUESTIONABLE: 0.97, InjuryStatus.DOUBTFUL: 0.9,
+                   InjuryStatus.OUT: 0.8, InjuryStatus.SUSPENDED: 0.7, InjuryStatus.IR: 0.3, InjuryStatus.PUP: 0.3,
                    InjuryStatus.NA: 0.1}
 BENCH_WEIGHT = 0.4        # a pickup who only adds depth is worth this fraction of his value over replacement
 REPLACEMENT_DEPTH = 3     # replacement level at a position = the Nth-best free agent there
@@ -157,7 +159,8 @@ def is_dead_spot(d: Valued, replacement: dict) -> bool:
     """Cheap enough to burn on a flier: near-worthless, or well below what the wire already offers.
     A backup QB who merely equals replacement level is not dead."""
     repl = replacement.get(d.player.position, 0.0)
-    return d.value <= DEAD_SPOT_PPG or (repl > 0 and d.value <= repl * (1 - DEAD_SPOT_BELOW))
+    healthy_value = max(d.value, d.raw_value)  # an injured starter is a hold, not a dead spot
+    return healthy_value <= DEAD_SPOT_PPG or (repl > 0 and healthy_value <= repl * (1 - DEAD_SPOT_BELOW))
 
 
 def speculative_adds(trending, available: dict, roster: list[Valued], settings: LeagueSettings, my_budget: int | None,
