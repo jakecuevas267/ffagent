@@ -63,6 +63,7 @@ class Config(BaseModel):
     notify: list[NotifyConfig] = Field(default_factory=list)
     schedule: ScheduleConfig = Field(default_factory=ScheduleConfig)
     data_dir: Path = Path("data")
+    expert_cache_hours: float = 6.0  # expert projections are re-fetched at most this often
 
 
 def load_config(path: Path | str) -> Config:

@@ -2,10 +2,10 @@ import json
 from pathlib import Path
 
 import pytest
-from ffagent.sources.fantasy_api_source import FantasyAPISource, map_projection, resolve
 
 from ffagent.domain.identity import PlayerIndex
 from ffagent.domain.models import LeagueRef, Platform, Player, Position
+from ffagent.sources.fantasy_api_source import FantasyAPISource, map_projection, resolve
 from ffagent.sources.gateway import ProjectionGateway
 from ffagent.sources.projections import Projection, score
 
@@ -122,3 +122,27 @@ def test_expert_projection_carries_fp_points_totals():
     ep = map_projection(PROJ["RB"][0])
     assert {"fp_points", "fp_points_ppr", "fp_points_half"} <= set(ep.stats)
     assert ep.stats["fp_points_ppr"] >= ep.stats["fp_points_half"] >= ep.stats["fp_points"]
+
+
+def test_client_disk_cache_honours_ttl(tmp_path):
+    from datetime import UTC, datetime, timedelta
+
+    import httpx
+
+    from ffagent.sources.fantasy_api_source import FantasyAPISourceClient
+
+    hits = []
+    def handler(request):
+        hits.append(request.url.path)
+        return httpx.Response(200, json={"players": [{"name": "X"}]})
+    now = [datetime(2026, 10, 9, 12, 0, tzinfo=UTC)]
+    http = httpx.Client(transport=httpx.MockTransport(handler), base_url="https://x/nfl")
+    c = FantasyAPISourceClient("k", http=http, cache_dir=tmp_path, cache_hours=6, clock=lambda: now[0])
+    assert c.projections(2026, 5, "RB") == [{"name": "X"}] and len(hits) == 1
+    # a second client (new process) within the TTL reads from disk
+    c2 = FantasyAPISourceClient("k", http=http, cache_dir=tmp_path, cache_hours=6, clock=lambda: now[0] + timedelta(hours=5))
+    assert c2.projections(2026, 5, "RB") == [{"name": "X"}] and len(hits) == 1 and c2.calls == 0
+    # after the TTL it refetches
+    c3 = FantasyAPISourceClient("k", http=http, cache_dir=tmp_path, cache_hours=6, clock=lambda: now[0] + timedelta(hours=7))
+    c3.projections(2026, 5, "RB")
+    assert len(hits) == 2 and c3.calls == 1

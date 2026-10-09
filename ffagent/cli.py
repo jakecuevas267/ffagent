@@ -104,7 +104,8 @@ def build_lineup_deps(config: Config, providers: dict[str, object], store=None):
     from ffagent.sources.projections import SleeperProjections
 
     key = api_key_from_env()
-    fp = FantasyAPISourceClient(key) if key and os.environ.get("FANTASY_INFORMATION_SOURCE_URL") else None
+    fp = (FantasyAPISourceClient(key, cache_dir=config.data_dir / "cache", cache_hours=config.expert_cache_hours)
+          if key and os.environ.get("FANTASY_INFORMATION_SOURCE_URL") else None)
     deps = {}
     for plat, p in providers.items():
         default = ESPNProjections(p) if plat == "espn" else SleeperProjections()

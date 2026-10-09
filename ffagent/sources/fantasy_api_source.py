@@ -5,8 +5,12 @@ top of each position; the gateway fills the rest from the platform's own project
 """
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 from dataclasses import dataclass, field
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 import httpx
 
@@ -35,20 +39,47 @@ def api_key_from_env() -> str | None:
 
 
 class FantasyAPISourceClient:
-    def __init__(self, api_key: str, base_url: str | None = None, http: httpx.Client | None = None):
+    def __init__(self, api_key: str, base_url: str | None = None, http: httpx.Client | None = None,
+                 cache_dir: Path | None = None, cache_hours: float = 6.0, clock=None):
         base_url = base_url or os.environ.get(URL_VAR)
         if http is None and not base_url:
             raise RuntimeError(f"{URL_VAR} is not set; it must hold the data API base URL")
         self._http = http or httpx.Client(base_url=base_url, timeout=60, headers={"x-api-key": api_key})
         self._cache: dict[tuple, dict] = {}
+        self._cache_dir = cache_dir
+        self._ttl = timedelta(hours=cache_hours)
+        self._clock = clock or (lambda: datetime.now(UTC))
+        self.calls = 0  # network calls made by this client; cache hits do not count
+
+    def _disk_path(self, key: tuple) -> Path | None:
+        if self._cache_dir is None:
+            return None
+        digest = hashlib.sha1(json.dumps(key, sort_keys=True).encode()).hexdigest()[:16]
+        return self._cache_dir / f"expert_{digest}.json"
 
     def _get(self, path: str, **params) -> dict:
-        key = (path, tuple(sorted(params.items())))
-        if key not in self._cache:
-            r = self._http.get(path, params=params)
-            r.raise_for_status()
-            self._cache[key] = r.json()
-        return self._cache[key]
+        key = (path, sorted(params.items()))
+        tkey = (path, tuple(sorted(params.items())))
+        if tkey in self._cache:
+            return self._cache[tkey]
+        disk = self._disk_path(key)
+        if disk and disk.exists():
+            try:
+                blob = json.loads(disk.read_text())
+                if self._clock() - datetime.fromisoformat(blob["fetched_at"]) < self._ttl:
+                    self._cache[tkey] = blob["data"]
+                    return blob["data"]
+            except (ValueError, KeyError):
+                pass
+        r = self._http.get(path, params=params)
+        self.calls += 1
+        r.raise_for_status()
+        data = r.json()
+        self._cache[tkey] = data
+        if disk:
+            disk.parent.mkdir(parents=True, exist_ok=True)
+            disk.write_text(json.dumps({"fetched_at": self._clock().isoformat(), "data": data}))
+        return data
 
     def projections(self, season: int, week: int, position: str, scoring: str = "PPR") -> list[dict]:
         return self._get(f"/{season}/projections", position=position, scoring=scoring, week=week).get("players", [])
