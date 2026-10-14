@@ -29,6 +29,7 @@ REPLACEMENT_DEPTH = 3     # replacement level at a position = the Nth-best free 
 BYE_COVER_BONUS = 2.0     # points-per-game equivalent for covering a starter's bye next week
 MIN_GAIN = 1.0            # below this (ppg) nothing is proposed
 CLEAR_GAIN = 4.0          # at or above: worth a waiver priority / a real FAAB bid
+SWAP_GAIN = {Position.DEF: MIN_GAIN, Position.K: 2.0}  # replacing my starter at these positions; others need CLEAR_GAIN
 
 
 @dataclass
@@ -46,6 +47,7 @@ class Valued:
     potential: list[str] = field(default_factory=list)  # rule names that make him more than a dead spot
     flags: list[str] = field(default_factory=list)      # pickup flags (team RB1, handcuff opportunity, ...)
     construction: str | None = None                     # roster-construction drop reason, if any
+    recent: object | None = None                        # ffagent.sources.stats.Recent, if known
 
 
 @dataclass
@@ -196,6 +198,11 @@ def plan_claims(settings: LeagueSettings, roster: list[Valued], free_agents: lis
         c = evaluate_add(settings, roster, fa, drops, replacement, ctx)
         if c is None or c.gain < min_gain:
             continue
+        if c.drop is not None and c.drop.holds:
+            # the drop is one of my starters (allowed only as a same-position upgrade): demand a real one
+            if c.gain < SWAP_GAIN.get(fa.player.position, CLEAR_GAIN):
+                continue
+            c.notes.append(f"replaces my starter {c.drop.player.name} at {fa.player.position}")
         if settings.waiver_type is WaiverType.FAAB and my_budget is not None:
             c.bid = size_bid(c, my_budget, rival_budgets, minimum=1)
         else:

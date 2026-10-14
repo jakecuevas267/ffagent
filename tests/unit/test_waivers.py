@@ -279,3 +279,36 @@ class TestStreaming:
         apply_rules(roster, [colts], ctx)
         claims = plan_claims(settings(), roster, [colts], 100, [], ctx=ctx)
         assert all(c.drop.player.position is Position.DEF for c in claims)
+
+
+class TestStarterSwaps:
+    def _ctx(self):
+        from ffagent.analysis.rules import RosterContext
+        return RosterContext(settings(), {"qb1", "rb1", "rb2", "wr1", "wr2", "te1", "wr3", "k1", "def1"}, set())
+
+    def test_marginal_wr_does_not_replace_my_starting_wr(self, roster):
+        # Case "WR3 upgrade": Brian Thomas (+1.1) must not cost Vele, a starter I have to play.
+        from ffagent.analysis.waivers import apply_rules
+        thomas = V("thomas", Position.WR, 11.0)
+        ctx = self._ctx(); apply_rules(roster, [thomas], ctx)
+        roster[10] = V("wr4", Position.WR, 5, Slot.BN); roster[10].holds = []; roster[10].potential = ["handcuff"]
+        claims = plan_claims(settings(), roster, [thomas], 100, [], ctx=ctx)
+        assert all(not c.drop.holds for c in claims)
+
+    def test_clear_wr_upgrade_may_replace_my_starting_wr(self, roster):
+        from ffagent.analysis.waivers import apply_rules
+        star = V("star", Position.WR, 18.0)
+        ctx = self._ctx(); apply_rules(roster, [star], ctx)
+        for v in roster:
+            if v.on_roster_slot is Slot.BN:
+                v.holds = ["positional-value hold (test)"]  # no bench drop at all: the swap path is the only route
+        claims = plan_claims(settings(), roster, [star], 100, [], ctx=ctx)
+        assert claims and claims[0].drop.holds and any("replaces my starter" in n for n in claims[0].notes)
+
+    def test_kicker_needs_a_two_point_edge(self, roster):
+        from ffagent.analysis.waivers import apply_rules
+        ctx = self._ctx()
+        meh = V("meh", Position.K, 9.2); apply_rules(roster, [meh], ctx)   # k1 is 8
+        assert plan_claims(settings(), roster, [meh], 100, [], ctx=ctx) == []
+        good = V("good", Position.K, 10.5); apply_rules(roster, [good], ctx)
+        assert plan_claims(settings(), roster, [good], 100, [], ctx=ctx)

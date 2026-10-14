@@ -73,6 +73,18 @@ class Store:
                                   (league_key, week)).fetchall()
         return {r[0] for r in rows}
 
+    def recent_decisions(self, league_key: str, limit: int = 20) -> list[dict]:
+        """Most recent decisions for a league (any workflow), newest first: verdict, note, what it was."""
+        rows = self._conn.execute(
+            "SELECT week, workflow, verdict, note, payload FROM decisions WHERE league_key=? ORDER BY id DESC LIMIT ?",
+            (league_key, limit)).fetchall()
+        out = []
+        for week, workflow, verdict, note, payload in rows:
+            pl = json.loads(payload)
+            out.append({"week": week, "workflow": workflow, "verdict": verdict, "note": note,
+                        "add": pl.get("player_in_name"), "drop": pl.get("player_out_name"), "step": pl.get("step")})
+        return out
+
     def approved_payloads(self, league_key: str, week: int, workflow: str | None = None) -> list[dict]:
         q = "SELECT payload FROM decisions WHERE league_key=? AND week=? AND verdict IN ('approved','edited')"
         args: list = [league_key, week]

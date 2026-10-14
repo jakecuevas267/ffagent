@@ -68,12 +68,30 @@ def build_waiver_graph(deps: LineupDeps, checkpointer: BaseCheckpointSaver | Non
         values = deps.values.values(ref, wk, settings.scoring)
         name = lambda pid: index.by_id(pid).name if pid and index.by_id(pid) else (pid or "(empty)")
 
+        # Recent performance (Sleeper ids; other platforms map through the crosswalk).
+        recent: dict = {}
+        if deps.stats is not None:
+            try:
+                raw_recent = deps.stats.recent(ref.season, max(1, wk - 1), settings.scoring)
+            except Exception:  # noqa: BLE001 - a refinement, never a blocker
+                raw_recent = {}
+            if ref.platform is Platform.SLEEPER:
+                recent = raw_recent
+            elif deps.nfl is not None:
+                sidx = PlayerIndex(deps.nfl.players())
+                for pl in list(index) + fas:
+                    eid = pl.external_ids.get(Platform.ESPN)
+                    sp = sidx.by_external(Platform.ESPN, eid) if eid else None
+                    if sp is not None and sp.id in raw_recent:
+                        recent[pl.id] = raw_recent[sp.id]
+
         def valued(player, slot=None, trending=0) -> Valued:
             v = values.get(player.id)
             raw = v.ppg if v else 0.0
             return Valued(player=player, value=round(raw * INJURY_DISCOUNT.get(player.injury_status, 1.0), 2), raw_value=raw,
                           source=v.source if v else "none", on_roster_slot=slot, trending=trending,
-                          bye_next=bool(player.team and player.team in next_byes), on_waivers=player.on_waivers)
+                          bye_next=bool(player.team and player.team in next_byes), on_waivers=player.on_waivers,
+                          recent=recent.get(player.id))
 
         roster = [valued(index.by_id(e.player_id), e.slot) for e in me.roster if e.player_id and index.by_id(e.player_id)]
         trends = deps.trends.for_league("add", ref, index) if deps.trends is not None else []
@@ -110,7 +128,83 @@ def build_waiver_graph(deps: LineupDeps, checkpointer: BaseCheckpointSaver | Non
 
         rejected = deps.store.rejected_fingerprints(ref.key, wk) if deps.store is not None else set()
         proposals = []
-        for n, c in enumerate(claims, 1):
+        advice_line, watch_lines, questioned = None, [], []
+        advised = deps.adviser is not None and deps.adviser.enabled
+        if advised:
+            by_id = {v.player.id: v for v in roster} | {v.player.id: v for v in available.values()}
+            cand_ids = ({c.add.player.id for c in claims} | {t.player_id for t in trends[:10] if t.player_id in available}
+                        | {v.player.id for v in pool[:15]})
+            droppable = [v for v in roster if v.on_roster_slot not in (Slot.IR, Slot.TAXI) and not v.holds
+                         and v.droppable and v.player.droppable]
+            swap_ok = [v for v in roster if v.holds and all(h.startswith("fantasy-starter hold") for h in v.holds)]
+            det = {c.add.player.id: c for c in claims}
+
+            def row(v: Valued, extra: dict | None = None) -> dict:
+                pl = v.player
+                d = {"id": pl.id, "name": pl.name, "pos": str(pl.position), "team": pl.team or "no team",
+                     "value_ppg": v.value, "ros_pos_rank": pl.ros_pos_rank,
+                     "depth_chart": f"{pl.depth_position}#{pl.depth_order}" if pl.depth_order else None,
+                     "years_exp": pl.years_exp,
+                     "injury": str(pl.injury_status) + (f" ({pl.injury_note})" if pl.injury_note else ""),
+                     "recent": v.recent.line() if v.recent else None, "trending_adds_24h": v.trending or None,
+                     "bye_next_week": v.bye_next or None}
+                return d | (extra or {})
+
+            roster_rows = [row(v, {"slot": str(v.on_roster_slot), "holds": v.holds, "potential": v.potential,
+                                   "construction": v.construction}) for v in roster]
+            cand_rows = []
+            for pid in cand_ids:
+                v, c = by_id[pid], det.get(pid)
+                cand_rows.append(row(v, {"flags": v.flags, "on_waivers": v.on_waivers, "deterministic": (
+                    {"role": c.role, "gain_ppg": c.gain, "suggested_drop": c.drop.player.name if c.drop else None,
+                     "bid": c.bid, "notes": c.notes} if c else None)}))
+            drop_rows = [row(v, {"slot": str(v.on_roster_slot), "potential": v.potential, "construction": v.construction})
+                         for v in droppable]
+            drop_rows += [row(v, {"slot": str(v.on_roster_slot), "only_for_same_position_upgrade": True}) for v in swap_ok]
+            profile = {"platform": str(ref.platform), "format": str(settings.format), "teams": settings.num_teams,
+                       "superflex": Slot.SUPER_FLEX in settings.roster_slots,
+                       "starting_slots": [str(x) for x in settings.starting_slots],
+                       "bench": settings.roster_slots.get(Slot.BN, 0), "ir_slots": settings.roster_slots.get(Slot.IR, 0),
+                       "ir_allows": sorted(str(x) for x in settings.ir_statuses), "waivers": str(settings.waiver_type),
+                       "faab_budget": settings.faab_budget, "my_priority": me.waiver_priority,
+                       "scoring_rec": settings.scoring.get("rec"), "scoring_pass_td": settings.scoring.get("pass_td"),
+                       "week": wk, "my_injured_starter_positions": sorted(str(x) for x in hurt)}
+            decisions = deps.store.recent_decisions(ref.key) if deps.store is not None else []
+            res = deps.adviser.advise(profile, roster_rows, cand_rows, drop_rows, decisions, budget, max_claims)
+            if res.error:
+                advice_line = f"advise: {res.error}; showing the deterministic proposals"
+                advised = False
+            else:
+                advice_line = f"advise: {res.model} chose {len(res.proposals)} of {len(cand_rows)} candidates"
+                if res.rejected:
+                    advice_line += f"; dropped by validation: {'; '.join(res.rejected)}"
+                watch_lines, questioned = list(res.watch), list(res.holds_questioned)
+                for n, a in enumerate(res.proposals, 1):
+                    add, drop = by_id[a.add_id], by_id[a.drop_id]
+                    if budget is not None:
+                        how = f"bid {a.bid} of {budget} FAAB"
+                    elif a.action == "claim":
+                        how = f"waiver claim (priority {me.waiver_priority})"
+                    elif add.on_waivers is False:
+                        how = "free-agent pickup now (no priority spent)"
+                    else:
+                        how = "free-agent pickup after waivers clear (no priority spent)"
+                    payload = {"slot": None, "player_in": add.player.id, "player_in_name": add.player.name,
+                               "player_out": drop.player.id, "player_out_name": drop.player.name, "bid": a.bid,
+                               "use_priority": a.action == "claim" and budget is None,
+                               "gain": det[add.player.id].gain if add.player.id in det else None,
+                               "role": a.action, "principle": a.principle,
+                               "step": f"{how}: add {add.player.name}, drop {drop.player.name}"}
+                    if fingerprint("waiver_claim", payload) in rejected:
+                        continue
+                    ev = [f"{add.player.name} {add.value} ppg ROS [{add.source}] ({add.player.position}, {add.player.team or 'no team'})"
+                          + (f"; {add.recent.line()}" if add.recent else "") + (f"; {', '.join(add.flags)}" if add.flags else ""),
+                          f"{drop.player.name} {drop.value} ppg ROS [{drop.source}]" + (f"; {drop.recent.line()}" if drop.recent else "")
+                          + (f" — {drop.construction}" if drop.construction else "")]
+                    proposals.append(ProposedAction(
+                        id=f"{thread_id(ref, wk)}:a{n}", kind="waiver_claim", league_key=ref.key, payload=payload,
+                        rationale=f"{a.rationale} [{a.principle}]", evidence=ev).model_dump(mode="json"))
+        for n, c in enumerate([] if advised else claims, 1):
             add, drop = c.add.player, c.drop.player if c.drop else None
             if budget is not None:
                 how = f"bid {c.bid} of {budget} FAAB"
@@ -168,6 +262,7 @@ def build_waiver_graph(deps: LineupDeps, checkpointer: BaseCheckpointSaver | Non
             for pl in deps.store.approved_payloads(ref.key, wk, "waivers"):
                 verify.append(f"{pl['player_in_name']}: {'on roster' if pl['player_in'] in mine else 'not on roster (claim lost or not placed)'}")
         summary = {"team": me.name, "week": wk, "budget": budget, "priority": me.waiver_priority,
+                   "advise": advice_line, "watch": watch_lines, "holds_questioned": questioned,
                    "waiver_type": settings.waiver_type, "values": deps.values.line(),
                    "drop_candidates": drops, "pending": pending_lines, "verify": verify,
                    "trending": trending_lines, "trending_drops": trending_drops, "holds": holds,

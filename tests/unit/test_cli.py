@@ -159,6 +159,7 @@ def test_build_lineup_deps_uses_expert_gateway_only_when_key_is_set(monkeypatch)
     cfg = Config.model_validate({"season": 2026, "leagues": []})
     for var in ("FANTASY_INFORMATION_SOURCE_API_KEY", "FANTASY_INFORMATION_SOURCE_KEY", "FANTASY_INFORMATION_SOURCE_URL"):
         monkeypatch.delenv(var, raising=False)  # an earlier test may have load_dotenv()'d the real .env
+    monkeypatch.setenv("FFAGENT_NO_LLM", "1")  # never construct a real model client in tests
     deps = build_lineup_deps(cfg, {"sleeper": provider})
     assert isinstance(deps["sleeper"].projections, ProjectionGateway) and deps["sleeper"].projections.expert is None
     monkeypatch.setenv("FANTASY_INFORMATION_SOURCE_API_KEY", "test-key")

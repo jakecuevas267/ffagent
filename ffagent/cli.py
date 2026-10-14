@@ -90,6 +90,20 @@ def cmd_leagues(config: Config, args) -> int:
     return 0
 
 
+def build_adviser(config: Config, playbook_name: str):
+    """The LLM advise node, or a disabled one when turned off or unconfigured."""
+    from ffagent.llm.advise import Adviser, load_playbook
+
+    if not config.llm.enabled or os.environ.get("FFAGENT_NO_LLM"):
+        return Adviser(None)
+    playbook = load_playbook(config.playbook_dir, playbook_name)
+    try:
+        return Adviser.from_config(config.llm.model, playbook, config.llm.temperature)
+    except Exception as e:  # noqa: BLE001 - missing key or provider package: run without the node
+        print(f"advise node off ({type(e).__name__}: {str(e)[:80]})", file=sys.stderr)
+        return Adviser(None)
+
+
 def build_lineup_deps(config: Config, providers: dict[str, object], store=None):
     """Real projections + schedule for the graphs. Tests swap this out."""
     from ffagent.graphs.lineup import LineupDeps
@@ -110,8 +124,12 @@ def build_lineup_deps(config: Config, providers: dict[str, object], store=None):
     fp = (FantasyAPISourceClient(key, cache_dir=config.data_dir / "cache", cache_hours=config.expert_cache_hours)
           if key and os.environ.get("FANTASY_INFORMATION_SOURCE_URL") else None)
     # Sleeper's trending feed is the pickup-trend signal for every league; it needs no credentials.
+    from ffagent.sources.stats import SleeperStats
+
     nfl = providers.get("sleeper") or SleeperProvider(SleeperClient())
     trends = SleeperTrends(nfl)
+    stats = SleeperStats()
+    adviser = build_adviser(config, "waivers")
     deps = {}
     for plat, p in providers.items():
         default = ESPNProjections(p) if plat == "espn" else SleeperProjections()
@@ -119,7 +137,8 @@ def build_lineup_deps(config: Config, providers: dict[str, object], store=None):
         default_name = "ESPN" if plat == "espn" else "Sleeper"
         gateway = ProjectionGateway(default, expert, default_name=default_name)
         values = ValueGateway(default, expert, default_name=default_name)
-        deps[plat] = LineupDeps(p, gateway, fetch_week, store=store, values=values, trends=trends, nfl=nfl)
+        deps[plat] = LineupDeps(p, gateway, fetch_week, store=store, values=values, trends=trends, nfl=nfl,
+                                stats=stats, adviser=adviser)
     return deps
 
 
@@ -259,6 +278,12 @@ def cmd_run_waivers(config: Config, args) -> int:
             print(f"   pending claims: {', '.join(s['pending'])}")
         for v in s.get("verify", []):
             print(f"   ✓ last review: {v}")
+        if s.get("advise"):
+            print(f"   {s['advise']}")
+        for w in s.get("watch", []):
+            print(f"   👀 {w}")
+        for q in s.get("holds_questioned", []):
+            print(f"   ❓ hold questioned: {q}")
         if s.get("hurt_positions"):
             print(f"   my injured starters at: {', '.join(s['hurt_positions'])} (depth there counts 1.5x)")
         for h in s.get("holds", []):
@@ -387,8 +412,11 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--again", action="store_true", help="redo a league already reviewed this week")
     run.add_argument("--watch", action="store_true", help="injury: keep checking until the day's last kickoff")
     run.add_argument("--interval", type=int, default=15, help="injury --watch: minutes between checks")
+    run.add_argument("--no-llm", action="store_true", help="skip the advise node; deterministic proposals only")
     args = ap.parse_args(argv)
 
+    if getattr(args, "no_llm", False):
+        os.environ["FFAGENT_NO_LLM"] = "1"
     try:
         config = load_config(args.config)
     except FileNotFoundError:

@@ -113,3 +113,36 @@ def test_trending_unprojected_free_agent_is_proposed_as_a_flier(ref):
     assert len(spec) == 1 and spec[0]["payload"]["player_in"] == flier.id
     assert spec[0]["rationale"].startswith("Stash ") and "(flier)" in spec[0]["payload"]["step"]
     assert spec[0]["payload"]["bid"] == 2  # 2% of the 77 FAAB left, rounded
+
+
+def test_advise_node_proposals_replace_deterministic_ones(ref):
+    from ffagent.llm.advise import Advice, AdviceOut, Adviser
+    from tests.unit.test_advise import FakeLLM
+    deps = make_deps(Store())
+    # Find the deterministic candidate/drop pair the graph would offer, then have the "model" pick it with a principle.
+    probe = build_waiver_graph(deps, MemorySaver())
+    out, _ = run(probe, ref)
+    det = out["__interrupt__"][0].value["proposals"][0]
+    llm = FakeLLM(AdviceOut(proposals=[Advice(add_id=det["payload"]["player_in"], drop_id=det["payload"]["player_out"], action="pickup",
+                                               principle="RBs who start for their NFL team are pickups", rationale="He starts and my bench spot is dead.")],
+                            watch=["Someone: check Sunday"], holds_questioned=["Nobody"]))
+    deps.adviser = Adviser(llm, "fake-model", playbook="- RBs who start for their NFL team are pickups")
+    graph = build_waiver_graph(deps, MemorySaver())
+    out2, _ = run(graph, ref)
+    s = out2["summary"]
+    assert s["advise"].startswith("advise: fake-model chose 1 of") and s["watch"] == ["Someone: check Sunday"]
+    props = out2["__interrupt__"][0].value["proposals"]
+    assert len(props) == 1 and props[0]["payload"]["principle"] and "[RBs who start" in props[0]["rationale"]
+    assert props[0]["payload"]["player_in"] == det["payload"]["player_in"]
+    human = llm.messages[1][1]
+    assert '"my_roster"' in human and '"pickup_candidates"' in human and '"format": "redraft"' in human
+
+
+def test_advise_failure_falls_back_to_deterministic(ref):
+    from ffagent.llm.advise import Adviser
+    from tests.unit.test_advise import FakeLLM
+    deps = make_deps(Store())
+    deps.adviser = Adviser(FakeLLM(RuntimeError("boom")), "fake-model", "")
+    out, _ = run(build_waiver_graph(deps, MemorySaver()), ref)
+    assert "showing the deterministic proposals" in out["summary"]["advise"]
+    assert out["__interrupt__"][0].value["proposals"]

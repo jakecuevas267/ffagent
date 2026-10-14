@@ -163,8 +163,10 @@ passing it.
 
 ### LLM advise node (slices 1, 3, 4) and the playbook
 - [x] Deterministic playbook rules for waivers (holds, potential, construction, swaps, flags, backfields, need), tested from the manager's cases (10/14).
-- [ ] `advise` node: user playbook + candidate set with facts + league profile + recent decisions in;
-      structured, validated proposals with a named principle per rationale out. One node, three slices.
+- [x] `advise` node for waivers: playbook + candidate set with facts + league profile + recent decisions in;
+      structured, validated proposals with a named principle per rationale out (10/14).
+- [ ] Same node for lineups (slice 1) once `playbook/lineup.md` has content, and for trades (slice 4).
+- [x] Recent performance facts (last 3 weeks points, snap share, targets) from Sleeper weekly stats.
 - [ ] Playbook rules are format-conditional (discovered attributes), never league-specific; personal
       playbooks are git-ignored, templates ship.
 - [ ] DB-backed league profile snapshot per season (settings as detected) for reproducible runs and evals.

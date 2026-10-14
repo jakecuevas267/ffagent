@@ -34,7 +34,8 @@ class LeagueConfig(BaseModel):
 
 class LLMConfig(BaseModel):
     model: str = "anthropic:claude-fable-5-1"
-    temperature: float = 0.0
+    temperature: float | None = None  # leave unset: some models only accept their default
+    enabled: bool = True
 
 
 class SourceConfig(BaseModel):
@@ -69,6 +70,7 @@ class Config(BaseModel):
     waivers: WaiverConfig = Field(default_factory=WaiverConfig)
     data_dir: Path = Path("data")
     expert_cache_hours: float = 6.0  # expert projections are re-fetched at most this often
+    playbook_dir: Path = Path("playbook")
 
 
 def load_config(path: Path | str) -> Config:
