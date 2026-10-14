@@ -29,11 +29,14 @@ class Store:
     def __init__(self, path: Path | str = ":memory:"):
         if path != ":memory:":
             Path(path).parent.mkdir(parents=True, exist_ok=True)
-        self._conn = sqlite3.connect(str(path), check_same_thread=False)
+        self._path = str(path)
+        self._conn = sqlite3.connect(self._path, check_same_thread=False)
         self._conn.executescript(_SCHEMA)
+        self._ckpt_conn = (sqlite3.connect(self._path, check_same_thread=False) if self._path != ":memory:"
+                           else self._conn)  # the saver manages its own transactions; keep them apart
 
     def checkpointer(self) -> SqliteSaver:
-        return SqliteSaver(self._conn)
+        return SqliteSaver(self._ckpt_conn)
 
     # -- snapshots -----------------------------------------------------------------------------
     def save_snapshot(self, league_key: str, week: int, snap: Snapshot) -> None:

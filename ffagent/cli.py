@@ -110,7 +110,8 @@ def build_lineup_deps(config: Config, providers: dict[str, object], store=None):
     fp = (FantasyAPISourceClient(key, cache_dir=config.data_dir / "cache", cache_hours=config.expert_cache_hours)
           if key and os.environ.get("FANTASY_INFORMATION_SOURCE_URL") else None)
     # Sleeper's trending feed is the pickup-trend signal for every league; it needs no credentials.
-    trends = SleeperTrends(providers.get("sleeper") or SleeperProvider(SleeperClient()))
+    nfl = providers.get("sleeper") or SleeperProvider(SleeperClient())
+    trends = SleeperTrends(nfl)
     deps = {}
     for plat, p in providers.items():
         default = ESPNProjections(p) if plat == "espn" else SleeperProjections()
@@ -118,7 +119,7 @@ def build_lineup_deps(config: Config, providers: dict[str, object], store=None):
         default_name = "ESPN" if plat == "espn" else "Sleeper"
         gateway = ProjectionGateway(default, expert, default_name=default_name)
         values = ValueGateway(default, expert, default_name=default_name)
-        deps[plat] = LineupDeps(p, gateway, fetch_week, store=store, values=values, trends=trends)
+        deps[plat] = LineupDeps(p, gateway, fetch_week, store=store, values=values, trends=trends, nfl=nfl)
     return deps
 
 
@@ -258,6 +259,10 @@ def cmd_run_waivers(config: Config, args) -> int:
             print(f"   pending claims: {', '.join(s['pending'])}")
         for v in s.get("verify", []):
             print(f"   ✓ last review: {v}")
+        if s.get("hurt_positions"):
+            print(f"   my injured starters at: {', '.join(s['hurt_positions'])} (depth there counts 1.5x)")
+        for h in s.get("holds", []):
+            print(f"   ⛔ hold: {h}")
         if s.get("drop_candidates"):
             print(f"   cheapest drops: {', '.join(s['drop_candidates'])}")
         for line in s.get("trending", []):

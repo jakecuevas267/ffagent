@@ -162,6 +162,7 @@ passing it.
 - [ ] Freshness gate: a workflow that needs week-N rankings and only finds week N-1 should say so.
 
 ### LLM advise node (slices 1, 3, 4) and the playbook
+- [x] Deterministic playbook rules for waivers (holds, potential, construction, swaps, flags, backfields, need), tested from the manager's cases (10/14).
 - [ ] `advise` node: user playbook + candidate set with facts + league profile + recent decisions in;
       structured, validated proposals with a named principle per rationale out. One node, three slices.
 - [ ] Playbook rules are format-conditional (discovered attributes), never league-specific; personal

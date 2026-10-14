@@ -67,9 +67,9 @@ def test_approved_claim_is_verified_next_run(ref):
     graph2 = build_waiver_graph(make_deps(store), MemorySaver())
     out2, _ = run(graph2, ref)
     assert any("not on roster" in v for v in out2["summary"]["verify"])
-    # the rejected claim is not re-proposed
-    again = [p["payload"]["player_in"] for p in out2.get("__interrupt__", [None])[0].value["proposals"]] if "__interrupt__" in out2 else []
-    assert props[1]["payload"]["player_in"] not in again
+    # rejected claims (if any) are not re-proposed
+    again = [p["payload"]["player_in"] for p in out2["__interrupt__"][0].value["proposals"]] if "__interrupt__" in out2 else []
+    assert all(p["payload"]["player_in"] not in again for p in props[1:])
 
 
 def test_commissioner_league_is_skipped(ref):
@@ -97,6 +97,11 @@ def test_trending_unprojected_free_agent_is_proposed_as_a_flier(ref):
     flier = next(f for f in provider.free_agents(ref) if f.position in usable)
     proj.pop(flier.id, None)   # no projection at all...
     flier.team = None          # ...because he is between teams
+    # The fixture roster is all NFL starters; make its one cuttable bench player a true dead spot
+    # (no projection, no rookie ramp, no depth-chart path) so a flier has somewhere to go.
+    thomas = next(p for p in provider.players() if p.name == "Brian Thomas")
+    proj.pop(thomas.id, None)
+    thomas.years_exp, thomas.depth_order = 5, 3
     deps.trends = FakeTrends([flier.id], drop_ids=[provider.teams(ref)[0].roster[0].player_id])
     graph = build_waiver_graph(deps, MemorySaver())
     out, _ = run(graph, ref)

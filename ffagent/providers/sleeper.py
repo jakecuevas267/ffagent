@@ -79,6 +79,8 @@ def map_players(raw: dict[str, dict]) -> list[Player]:
             injury_status=InjuryStatus.parse(p.get("injury_status")),
             injury_note=p.get("injury_body_part"), practice=p.get("practice_participation"),
             active=True, external_ids=ext,
+            depth_position=p.get("depth_chart_position"), depth_order=p.get("depth_chart_order"),
+            years_exp=p.get("years_exp"),
         ))
     return out
 
@@ -238,3 +240,24 @@ def _roster_entries(r: dict, starting_slots: list[Slot]) -> list[RosterEntry]:
         slot = Slot.IR if pid in reserve else Slot.TAXI if pid in taxi else Slot.BN
         entries.append(RosterEntry(player_id=str(pid), slot=slot))
     return entries
+
+
+def enrich_from_sleeper(players: list[Player], sleeper_index) -> int:
+    """Copy NFL facts (depth chart, experience, injury note) onto another platform's players via the
+    espn_id crosswalk, then name/position/team. Returns how many were enriched."""
+    n = 0
+    for pl in players:
+        sp = None
+        espn_id = pl.external_ids.get(Platform.ESPN)
+        if espn_id:
+            sp = sleeper_index.by_external(Platform.ESPN, espn_id)
+        if sp is None:
+            r = sleeper_index.resolve(pl.name, pl.position, pl.team)
+            sp = r.player if r.status == "exact" else None
+        if sp is None:
+            continue
+        pl.depth_position, pl.depth_order, pl.years_exp = sp.depth_position, sp.depth_order, sp.years_exp
+        if pl.injury_note is None:
+            pl.injury_note = sp.injury_note
+        n += 1
+    return n

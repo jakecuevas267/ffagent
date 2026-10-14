@@ -161,3 +161,15 @@ def test_client_throttles_to_one_request_per_second(tmp_path):
     assert c.calls == 4 and len(sleeps) == 3 and all(0 < s <= 1.0 for s in sleeps)
     c.projections(2026, 5, "QB")  # cached: no call, no sleep
     assert c.calls == 4 and len(sleeps) == 3
+
+
+def test_ros_ranks_resolve_to_platform_ids(sleeper_index, ref):
+    ROS = json.loads((FIX / "fantasy_api_source" / "rankings_ros.json").read_text())
+
+    class FakeFP2(FakeFP):
+        def rankings(self, season, position, scoring="PPR", week=None):
+            return ROS[position]
+    src = FantasyAPISource(FakeFP2(), lambda r: sleeper_index)
+    ranks = src.ros_ranks(ref)
+    assert ranks and all(isinstance(v, int) and v >= 1 for v in ranks.values())
+    assert all(sleeper_index.by_id(k) is not None for k in ranks)

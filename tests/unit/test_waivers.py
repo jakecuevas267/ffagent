@@ -54,7 +54,7 @@ class TestEvaluate:
         fa = V("fa_rb", Position.RB, 13)   # beats rb2 (11) -> starts at RB, rb2 to FLEX over wr3 (10)
         c = evaluate_add(settings(), roster, fa, drop_candidates(settings(), roster))
         assert c.role == "starter" and c.drop.player.id == "wr4"
-        assert c.gain == pytest.approx(13 - 10)  # lineup gain: fa in, wr3 out of FLEX
+        assert c.gain == pytest.approx(max(13 - 10, 0.4 * (13 - 5)))  # the larger of lineup gain and depth gain
 
     def test_depth_pickup_is_valued_over_replacement(self, roster):
         fa = V("fa_rb", Position.RB, 8)    # better than rb3 (6) but would not start
@@ -185,3 +185,75 @@ class TestDeadSpot:
         star = V("qb1", Position.QB, 7.0, Slot.BN, injury=InjuryStatus.OUT)
         star.raw_value = 19.0
         assert not is_dead_spot(star, {Position.QB: 17.0})
+
+
+class TestRulesInPlanning:
+    """The week-6 cases, end to end through plan_claims."""
+
+    def _ctx(self, starters, injured=(), fmt=None):
+        from ffagent.analysis.rules import RosterContext
+        st = settings()
+        if fmt:
+            st = LeagueSettings(num_teams=12, roster_slots=SLOTS, waiver_type=WaiverType.FAAB, faab_budget=100, format=fmt)
+        return RosterContext(st, set(starters), set(injured))
+
+    def test_kicker_never_replaces_a_skill_player(self, roster):
+        from ffagent.analysis.waivers import apply_rules
+        smack = V("smack", Position.K, 9.0)
+        ctx = self._ctx(starters={"qb1", "rb1", "rb2", "wr1", "wr2", "te1", "wr3", "k1", "def1"})
+        apply_rules(roster, [smack], ctx)
+        claims = plan_claims(settings(), roster, [smack], 100, [], ctx=ctx)
+        assert all(c.drop.player.position is Position.K for c in claims)
+
+    def test_held_players_are_never_drops(self, roster):
+        from ffagent.analysis.waivers import apply_rules, drop_candidates
+        roster[9].player.depth_position, roster[9].player.depth_order = "RB", 1   # rb3 starts for his NFL team
+        ctx = self._ctx(starters={"qb1", "rb1", "rb2", "wr1", "wr2", "te1", "wr3", "k1", "def1"})
+        apply_rules(roster, [], ctx)
+        assert "rb3" not in [d.player.id for d in drop_candidates(settings(), roster)]
+
+    def test_flier_does_not_cost_a_rookie(self, roster):
+        from ffagent.analysis.waivers import apply_rules, speculative_adds
+        from ffagent.domain.models import Format, Trend
+        roster[10].player.years_exp = 0   # wr4 is a rookie
+        ctx = self._ctx(starters=set(), fmt=Format.DYNASTY)
+        apply_rules(roster, [], ctx)
+        mixon = V("mixon", Position.RB, 0.0)
+        repl = {Position.RB: 5.0, Position.WR: 8.0, Position.QB: 15.0}
+        claims = speculative_adds([Trend(player_id="mixon", count=1, label="x")], {"mixon": mixon}, roster, ctx.settings, 100, repl)
+        assert all(c.drop.player.id != "wr4" for c in claims)
+
+    def test_over_stocked_position_is_dropped_first(self, roster):
+        from ffagent.analysis.waivers import apply_rules, drop_candidates
+        roster.append(V("qb3", Position.QB, 9.0, Slot.BN))
+        ctx = self._ctx(starters={"qb1"})
+        apply_rules(roster, [], ctx)
+        first = drop_candidates(settings(), roster)[0]
+        assert first.player.position is Position.QB and first.construction
+
+    def test_one_back_per_backfield(self, roster):
+        from ffagent.analysis.waivers import apply_rules
+        dobbins = V("dobbins", Position.RB, 10.3); dobbins.player.team = "DEN"; dobbins.player.depth_position, dobbins.player.depth_order = "RB", 1
+        harvey = V("harvey", Position.RB, 9.6); harvey.player.team = "DEN"; harvey.player.depth_position, harvey.player.depth_order = "RB", 2
+        ctx = self._ctx(starters=set())
+        apply_rules(roster, [dobbins, harvey], ctx)
+        claims = plan_claims(settings(), roster, [dobbins, harvey], 100, [], max_claims=3, ctx=ctx)
+        assert [c.add.player.id for c in claims if c.add.player.team == "DEN"] == ["dobbins"]
+        assert any("shares this backfield" in n for n in claims[0].notes)
+        assert "team RB1 (DEN)" in claims[0].notes
+
+    def test_rb_depth_worth_more_when_my_rb_is_hurt(self, roster):
+        from ffagent.analysis.waivers import (
+            apply_rules,
+            drop_candidates,
+            evaluate_add,
+        )
+        fa = V("fa_rb", Position.RB, 8)
+        repl = {Position.RB: 5.0, Position.WR: 8.0}
+        calm = self._ctx(starters=set())
+        hurt = self._ctx(starters=set(), injured={Position.RB})
+        apply_rules(roster, [fa], calm)
+        g1 = evaluate_add(settings(), roster, fa, drop_candidates(settings(), roster), repl, calm).gain
+        apply_rules(roster, [fa], hurt)
+        g2 = evaluate_add(settings(), roster, fa, drop_candidates(settings(), roster), repl, hurt).gain
+        assert g2 > g1

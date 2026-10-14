@@ -1,0 +1,143 @@
+
+== Colorado Boolin’ — waivers for week 6 — Par 4, road on the left — waiver priority 11
+   values: FantasyAPISource season projections for 542 players, Sleeper next-week for 2760
+   cheapest drops: Najee Harris (4.38 ppg), Keaton Mitchell (4.68 ppg), Adonai Mitchell (5.01 ppg)
+   ↑ trending: Jaleel McLaughlin (RB, CLE) 2.58 ppg — 854,000 adds in 24h
+   ↑ trending: Darius Cooper (WR, PHI) 0.5 ppg — 669,620 adds in 24h
+   ↑ trending: Indianapolis Colts (DEF, IND) 8.93 ppg — 597,141 adds in 24h
+   ↑ trending: Tyler Higbee (TE, LAR) 3.82 ppg — 410,319 adds in 24h
+   ↑ trending: Efton Chism (WR, NE) 1.15 ppg — 364,668 adds in 24h
+   ↓ on my roster, being dropped: Keaton Mitchell — 363,294 drops in 24h
+   ↓ on my roster, being dropped: KC Concepcion — 252,873 drops in 24h
+   ↓ on my roster, being dropped: Tyler Shough — 227,280 drops in 24h
+
+   [1] Stash Jaleel McLaughlin (speculative: 854,000 adds in 24h) for Adonai Mitchell
+       - Jaleel McLaughlin 2.58 ppg ROS [FantasyAPISource season] (RB, CLE)
+       - Adonai Mitchell 5.01 ppg ROS [FantasyAPISource season], doubtful
+       - 854,000 adds in 24h
+       - projects little yet; worth a stash on a dead roster spot
+       → free-agent pickup (flier, no priority spent): add Jaleel McLaughlin, drop Adonai Mitchell
+
+   [2] Stash Darius Cooper (speculative: 669,620 adds in 24h) for Adonai Mitchell
+       - Darius Cooper 0.5 ppg ROS [FantasyAPISource season] (WR, PHI)
+       - Adonai Mitchell 5.01 ppg ROS [FantasyAPISource season], doubtful
+       - 669,620 adds in 24h
+       - projects little yet; worth a stash on a dead roster spot
+       → free-agent pickup (flier, no priority spent): add Darius Cooper, drop Adonai Mitchell
+
+== Starkville Premier League — waivers for week 6 — FC Cuevas — waiver priority 9
+   values: FantasyAPISource season projections for 542 players, Sleeper next-week for 2760
+   cheapest drops: Tyler Allgeier (5.86 ppg), Devaughn Vele (5.88 ppg), Tyjae Spears (7.58 ppg)
+   ↑ trending: Efton Chism (WR, NE) 1.15 ppg — 364,668 adds in 24h
+   ↑ trending: Corey Kiner (RB, NE) 0.89 ppg — 362,778 adds in 24h
+   ↑ trending: Trey Smack (K, GB) 7.83 ppg — 274,352 adds in 24h
+   ↑ trending: Ryan Flournoy (WR, DAL) 4.17 ppg — 263,304 adds in 24h
+   ↑ trending: Tyler Bass (K, BUF) 6.64 ppg — 251,585 adds in 24h
+   ↓ on my roster, being dropped: KC Concepcion — 252,873 drops in 24h
+   ↓ on my roster, being dropped: Bo Nix — 235,350 drops in 24h
+
+   [1] Pick up Brian Thomas (starter, +1.12 ppg) for Tyler Allgeier
+       - Brian Thomas 10.2 ppg ROS [FantasyAPISource season] (WR, JAX)
+       - Tyler Allgeier 5.86 ppg ROS [FantasyAPISource season]
+       - would start over Kenny Gainwell
+       → free-agent pickup after waivers clear (no priority spent): add Brian Thomas, drop Tyler Allgeier
+
+   [2] Pick up Trey Smack (starter, +1.09 ppg) for Tyler Allgeier
+       - Trey Smack 7.83 ppg ROS [Sleeper week 6] (K, GB)
+       - Tyler Allgeier 5.86 ppg ROS [FantasyAPISource season]
+       - would start over Tyler Loop
+       - 274,352 adds in the last 24h
+       → free-agent pickup after waivers clear (no priority spent): add Trey Smack, drop Tyler Allgeier
+
+   [3] Stash Efton Chism (speculative: 364,668 adds in 24h) for Devaughn Vele
+       - Efton Chism 1.15 ppg ROS [FantasyAPISource season] (WR, NE)
+       - Devaughn Vele 5.88 ppg ROS [FantasyAPISource season]
+       - 364,668 adds in 24h
+       - projects little yet; worth a stash on a dead roster spot
+       → free-agent pickup (flier, no priority spent): add Efton Chism, drop Devaughn Vele
+
+   [4] Stash Corey Kiner (speculative: 362,778 adds in 24h) for Devaughn Vele
+       - Corey Kiner 0.89 ppg ROS [FantasyAPISource season] (RB, NE)
+       - Devaughn Vele 5.88 ppg ROS [FantasyAPISource season]
+       - 362,778 adds in 24h
+       - projects little yet; worth a stash on a dead roster spot
+       → free-agent pickup (flier, no priority spent): add Corey Kiner, drop Devaughn Vele
+
+== Starkville Fantasy League: no team of mine in this league (commissioner view); waiver workflow skipped
+
+== Armchair Football League — waivers for week 6 — The Best Jake — FAAB 100 left
+   values: FantasyAPISource season projections for 542 players, Sleeper next-week for 2760
+   cheapest drops: Kevin Coleman (3.93 ppg), Najee Harris (4.38 ppg), Ty Johnson (4.58 ppg)
+   ↑ trending: Jaleel McLaughlin (RB, CLE) 2.58 ppg — 854,000 adds in 24h
+   ↑ trending: Darius Cooper (WR, PHI) 0.5 ppg — 669,620 adds in 24h
+   ↑ trending: Corey Kiner (RB, NE) 0.89 ppg — 362,778 adds in 24h
+   ↑ trending: Brandin Cooks (WR, SF) 5.65 ppg — 238,632 adds in 24h
+   ↓ on my roster, being dropped: Keaton Mitchell — 363,294 drops in 24h
+
+   [1] Stash Jaleel McLaughlin (speculative: 854,000 adds in 24h) for Kevin Coleman
+       - Jaleel McLaughlin 2.58 ppg ROS [FantasyAPISource season] (RB, CLE)
+       - Kevin Coleman 3.93 ppg ROS [FantasyAPISource season]
+       - 854,000 adds in 24h
+       - projects little yet; worth a stash on a dead roster spot
+       → bid 2 of 100 FAAB (flier): add Jaleel McLaughlin, drop Kevin Coleman
+
+   [2] Stash Darius Cooper (speculative: 669,620 adds in 24h) for Kevin Coleman
+       - Darius Cooper 0.5 ppg ROS [FantasyAPISource season] (WR, PHI)
+       - Kevin Coleman 3.93 ppg ROS [FantasyAPISource season]
+       - 669,620 adds in 24h
+       - projects little yet; worth a stash on a dead roster spot
+       → bid 2 of 100 FAAB (flier): add Darius Cooper, drop Kevin Coleman
+
+== My 2026 League — waivers for week 6 — Elevator Beatdown — waiver priority 8
+   values: FantasyAPISource season projections for 543 players, ESPN next-week for 150
+   pending claims: Spencer Shrader, Chiefs D/ST, Steelers D/ST
+   cheapest drops: Dalton Kincaid (9.22 ppg), Josh Downs (9.37 ppg), Bhayshul Tuten (11.08 ppg)
+   ↑ trending: Dameon Pierce (RB, PHI) 5.05 ppg — 2,422,664 adds in 24h
+   ↑ trending: MarShawn Lloyd (RB, GB) 7.8 ppg — 1,311,534 adds in 24h
+   ↑ trending: Brenton Strange (TE, JAX) 9.01 ppg — 976,113 adds in 24h
+   ↑ trending: Jaleel McLaughlin (RB, CLE) 2.58 ppg — 854,000 adds in 24h
+   ↑ trending: Darius Cooper (WR, PHI) 0.5 ppg — 669,620 adds in 24h
+   no pickup worth a claim
+
+== League of Extraordinary Wooks — waivers for week 6 — Soft 6s — waiver priority 9
+   values: FantasyAPISource season projections for 543 players, ESPN next-week for 150
+   pending claims: Chiefs D/ST, Patriots D/ST, Tyler Loop
+   cheapest drops: Emanuel Wilson (3.81 ppg), Braelon Allen (5.55 ppg), Alvin Kamara (6.89 ppg)
+   ↑ trending: Dameon Pierce (RB, PHI) 4.97 ppg — 2,422,664 adds in 24h
+   ↑ trending: Jaleel McLaughlin (RB, CLE) 2.58 ppg — 854,000 adds in 24h
+   ↑ trending: Darius Cooper (WR, PHI) 0.5 ppg — 669,620 adds in 24h
+   ↑ trending: Kimani Vidal (RB, LAC) 2.9 ppg — 657,500 adds in 24h
+   ↑ trending: Nick Folk (K, ATL) 9.55 ppg — 525,600 adds in 24h
+   ↓ on my roster, being dropped: KC Concepcion — 252,873 drops in 24h
+
+   [1] Pick up J.K. Dobbins (starter, +2.71 ppg) for Emanuel Wilson
+       - J.K. Dobbins 10.29 ppg ROS [FantasyAPISource season] (RB, DEN)
+       - Emanuel Wilson 3.81 ppg ROS [FantasyAPISource season]
+       - would start over Tyjae Spears
+       → free-agent pickup now (no priority spent): add J.K. Dobbins, drop Emanuel Wilson
+
+   [2] Pick up RJ Harvey (starter, +1.97 ppg) for Emanuel Wilson
+       - RJ Harvey 9.55 ppg ROS [FantasyAPISource season] (RB, DEN)
+       - Emanuel Wilson 3.81 ppg ROS [FantasyAPISource season]
+       - would start over Tyjae Spears
+       → free-agent pickup after waivers clear (no priority spent): add RJ Harvey, drop Emanuel Wilson
+
+   [3] Pick up Kenny Gainwell (starter, +1.49 ppg) for Emanuel Wilson
+       - Kenny Gainwell 9.07 ppg ROS [FantasyAPISource season] (RB, TB)
+       - Emanuel Wilson 3.81 ppg ROS [FantasyAPISource season]
+       - would start over Tyjae Spears
+       → free-agent pickup now (no priority spent): add Kenny Gainwell, drop Emanuel Wilson
+
+   [4] Stash Dameon Pierce (speculative: 2,422,664 adds in 24h) for Emanuel Wilson
+       - Dameon Pierce 4.97 ppg ROS [ESPN week 6] (RB, PHI)
+       - Emanuel Wilson 3.81 ppg ROS [FantasyAPISource season]
+       - 2,422,664 adds in 24h
+       - projects little yet; worth a stash on a dead roster spot
+       → free-agent pickup (flier, no priority spent): add Dameon Pierce, drop Emanuel Wilson
+
+   [5] Stash Jaleel McLaughlin (speculative: 854,000 adds in 24h) for Emanuel Wilson
+       - Jaleel McLaughlin 2.58 ppg ROS [FantasyAPISource season] (RB, CLE)
+       - Emanuel Wilson 3.81 ppg ROS [FantasyAPISource season]
+       - 854,000 adds in 24h
+       - projects little yet; worth a stash on a dead roster spot
+       → free-agent pickup (flier, no priority spent): add Jaleel McLaughlin, drop Emanuel Wilson

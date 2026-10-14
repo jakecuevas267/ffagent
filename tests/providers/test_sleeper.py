@@ -191,3 +191,23 @@ class TestTrending:
 
     def test_trending_drops(self, provider):
         assert provider.trending("drop")
+
+
+class TestPlayerFacts:
+    def test_depth_chart_and_experience_are_mapped(self):
+        players = {p.id: p for p in map_players(load("players"))}
+        with_depth = [p for p in players.values() if p.depth_order]
+        assert len(with_depth) > 100
+        assert all(p.years_exp is not None for p in with_depth[:20])
+
+    def test_enrich_espn_players_through_crosswalk(self):
+        from ffagent.domain.identity import PlayerIndex
+        from ffagent.domain.models import Player
+        from ffagent.providers.sleeper import enrich_from_sleeper
+        sleeper = map_players(load("players"))
+        idx = PlayerIndex(sleeper)
+        src = next(p for p in sleeper if p.depth_order and p.external_id(Platform.ESPN))
+        espn = [Player(id=f"espn:{src.external_id(Platform.ESPN)}", name=src.name, positions=src.positions, team=src.team,
+                       external_ids={Platform.ESPN: src.external_id(Platform.ESPN)})]
+        assert enrich_from_sleeper(espn, idx) == 1
+        assert espn[0].depth_order == src.depth_order and espn[0].years_exp == src.years_exp

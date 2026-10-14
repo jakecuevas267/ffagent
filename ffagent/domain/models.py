@@ -167,6 +167,18 @@ class Player(BaseModel):
     active: bool = True
     on_waivers: bool | None = None  # free agents only: True = must be claimed; None = unknown
     droppable: bool = True          # ESPN undroppable list
+    depth_position: str | None = None  # NFL depth chart slot, e.g. RB, LWR, SWR, TE, QB (Sleeper)
+    depth_order: int | None = None     # 1 = the starter at that slot
+    years_exp: int | None = None       # 0 = rookie
+    ros_pos_rank: int | None = None    # expert rest-of-season rank within position (1 = best)
+
+    @property
+    def is_nfl_starter(self) -> bool:
+        return self.depth_order == 1
+
+    @property
+    def is_rookie_or_second_year(self) -> bool:
+        return self.years_exp is not None and self.years_exp <= 1
     external_ids: dict[str, str] = Field(default_factory=dict)  # Platform values or other id namespaces (yahoo)
 
     @property

@@ -7,6 +7,16 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from ffagent.analysis.lineup import Candidate, optimize_lineup
+from ffagent.analysis.rules import (
+    RosterContext,
+    construction_drops,
+    hold_reasons,
+    need_multiplier,
+    pickup_flags,
+    potential_reasons,
+    same_backfield,
+    swap_allowed,
+)
 from ffagent.domain.models import InjuryStatus, LeagueSettings, Player, Slot, WaiverType
 
 # Rest-of-season discounts: a status is mostly about this week, so the haircut is mild for short
@@ -32,6 +42,10 @@ class Valued:
     trending: int = 0            # adds in the last 24h across the platform, if known
     bye_next: bool = False
     on_waivers: bool | None = None  # True: must be claimed; False: free agent now; None: unknown (Sleeper)
+    holds: list[str] = field(default_factory=list)      # rule names that forbid dropping him
+    potential: list[str] = field(default_factory=list)  # rule names that make him more than a dead spot
+    flags: list[str] = field(default_factory=list)      # pickup flags (team RB1, handcuff opportunity, ...)
+    construction: str | None = None                     # roster-construction drop reason, if any
 
 
 @dataclass
@@ -62,11 +76,27 @@ def _can_fill_slots(settings: LeagueSettings, roster: list[Valued]) -> bool:
     return all(a.player_id is not None for a in r.assignments)
 
 
+def apply_rules(roster: list[Valued], free_agents: list[Valued], ctx: RosterContext | None,
+                teammates_of=None) -> None:
+    """Annotate roster players with hold/potential/construction reasons and free agents with flags."""
+    if ctx is None:
+        return
+    cons = construction_drops([v.player for v in roster], ctx)
+    for v in roster:
+        v.holds = hold_reasons(v.player, ctx)
+        v.potential = potential_reasons(v.player, ctx)
+        v.construction = cons.get(v.player.id)
+    for v in free_agents:
+        mates = teammates_of(v.player) if teammates_of else []
+        v.flags = pickup_flags(v.player, mates)
+
+
 def drop_candidates(settings: LeagueSettings, roster: list[Valued]) -> list[Valued]:
-    """Roster players we could cut, worst first, never leaving a starting slot unfillable."""
+    """Roster players we could cut, cheapest first: over-stocked positions first, then by value,
+    never a held player, never leaving a starting slot unfillable."""
     out = []
-    for v in sorted(roster, key=lambda v: v.value):
-        if v.on_roster_slot in (Slot.IR, Slot.TAXI) or not v.droppable or not v.player.droppable:
+    for v in sorted(roster, key=lambda v: (0 if v.construction else 1, v.value)):
+        if v.on_roster_slot in (Slot.IR, Slot.TAXI) or not v.droppable or not v.player.droppable or v.holds:
             continue
         rest = [x for x in roster if x.player.id != v.player.id]
         if _can_fill_slots(settings, rest):
@@ -87,31 +117,39 @@ def vorp(v: Valued, replacement: dict) -> float:
 
 
 def evaluate_add(settings: LeagueSettings, roster: list[Valued], fa: Valued, drops: list[Valued],
-                 replacement: dict | None = None) -> Claim | None:
+                 replacement: dict | None = None, ctx: RosterContext | None = None) -> Claim | None:
     replacement = replacement or {}
     base_value, base_lineup = _lineup_value(settings, roster)
     best: Claim | None = None
     for drop in drops:
         new_roster = [x for x in roster if x.player.id != drop.player.id] + [fa]
-        if not _can_fill_slots(settings, new_roster):
+        if not _can_fill_slots(settings, new_roster) or swap_allowed(fa.player, drop.player):
             continue
         new_value, new_lineup = _lineup_value(settings, new_roster)
         lineup_gain = new_value - base_value
         starts = fa.player.id in new_lineup.values()
+        depth_gain = BENCH_WEIGHT * max(0.0, vorp(fa, replacement) - max(0.0, vorp(drop, replacement)))
+        depth_gain *= need_multiplier(fa.player.position, ctx) if ctx else 1.0
         if starts:
             displaced = next((pid for i, pid in base_lineup.items() if pid and pid != new_lineup.get(i) and pid != drop.player.id), None)
-            gain, role = lineup_gain, "starter"
+            gain, role = max(lineup_gain, depth_gain), "starter"
+            if drop.potential and not fa.flags and gain < CLEAR_GAIN:
+                continue  # a handcuff/rookie is not cut for a flagless add on a marginal upgrade
         else:
-            # Depth is only worth what the wire cannot already give me, net of what the drop was worth.
-            gain = BENCH_WEIGHT * max(0.0, vorp(fa, replacement) - max(0.0, vorp(drop, replacement)))
-            role, displaced = "depth", None
+            # Depth is only worth what the wire cannot already give me, net of what the drop was worth,
+            # and worth more where one of my starters is hurt.
+            gain, role, displaced = depth_gain, "depth", None
+            if drop.potential and not fa.flags:
+                continue  # a bench player with a path is not cut for a bench player without one
         if fa.bye_next is False and any(x.bye_next and x.on_roster_slot and x.on_roster_slot not in (Slot.BN, Slot.IR, Slot.TAXI)
                                         and x.player.position in fa.player.positions for x in roster):
             gain += BYE_COVER_BONUS
             role = role if starts else "bye cover"
         if best is None or gain > best.gain or (gain == best.gain and drop.value < best.drop.value):
             best = Claim(add=fa, drop=drop, gain=round(gain, 2), displaces=displaced, role=role)
-        break  # drops are worst-first; the first legal one is the cheapest, and value gain only shrinks with better drops
+        break  # drops are cheapest-first; the first legal one is the right one, value gain only shrinks with better drops
+    if best is not None and fa.flags:
+        best.notes.extend(fa.flags)
     return best
 
 
@@ -126,14 +164,20 @@ def size_bid(claim: Claim, my_budget: int, rival_budgets: list[int], minimum: in
 
 def plan_claims(settings: LeagueSettings, roster: list[Valued], free_agents: list[Valued], my_budget: int | None,
                 rival_budgets: list[int], max_claims: int = 3, min_gain: float = MIN_GAIN,
-                pending_adds: set[str] = frozenset()) -> list[Claim]:
+                pending_adds: set[str] = frozenset(), ctx: RosterContext | None = None) -> list[Claim]:
     drops = drop_candidates(settings, roster)
     replacement = replacement_levels(free_agents)
     claims: list[Claim] = []
     for fa in sorted(free_agents, key=lambda v: (-v.value, -v.trending)):
         if fa.player.id in pending_adds:
             continue
-        c = evaluate_add(settings, roster, fa, drops, replacement)
+        if any(same_backfield(fa.player, c.add.player) for c in claims):
+            # one back per backfield: the one with the better depth-chart order is already in
+            better = [c for c in claims if same_backfield(fa.player, c.add.player)]
+            if (fa.player.depth_order or 9) >= (better[0].add.player.depth_order or 9):
+                better[0].notes.append(f"{fa.player.name} shares this backfield (RB#{fa.player.depth_order}); the starter is preferred")
+                continue
+        c = evaluate_add(settings, roster, fa, drops, replacement, ctx)
         if c is None or c.gain < min_gain:
             continue
         if settings.waiver_type is WaiverType.FAAB and my_budget is not None:
@@ -170,7 +214,7 @@ def speculative_adds(trending, available: dict, roster: list[Valued], settings: 
 
     Only costs a dead roster spot (a drop worth nothing over replacement) and a minimal bid.
     """
-    dead = [d for d in drop_candidates(settings, roster) if is_dead_spot(d, replacement)]
+    dead = [d for d in drop_candidates(settings, roster) if is_dead_spot(d, replacement) and not d.potential]
     out: list[Claim] = []
     for t in trending:
         fa = available.get(t.player_id)

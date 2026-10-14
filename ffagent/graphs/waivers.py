@@ -6,9 +6,12 @@ from typing import Any
 
 from langgraph.checkpoint.base import BaseCheckpointSaver
 
+from ffagent.analysis.lineup import Candidate, optimize_lineup
+from ffagent.analysis.rules import RosterContext
 from ffagent.analysis.waivers import (
     INJURY_DISCOUNT,
     Valued,
+    apply_rules,
     drop_candidates,
     plan_claims,
     replacement_levels,
@@ -49,6 +52,19 @@ def build_waiver_graph(deps: LineupDeps, checkpointer: BaseCheckpointSaver | Non
 
         fas = p.free_agents(ref, week=wk) if ref.platform is Platform.ESPN else p.free_agents(ref)
         index = PlayerIndex(p.players())
+        if ref.platform is Platform.ESPN and deps.nfl is not None:
+            from ffagent.providers.sleeper import enrich_from_sleeper
+            enrich_from_sleeper(list(index) + fas, PlayerIndex(deps.nfl.players()))
+        expert = getattr(deps.values, "expert", None)
+        ranks = {}
+        if expert is not None and hasattr(expert, "ros_ranks"):
+            try:
+                ranks = expert.ros_ranks(ref)
+            except Exception:  # noqa: BLE001 - ranks are a refinement, never a blocker
+                ranks = {}
+        for pl in list(index) + fas:
+            if pl.id in ranks:
+                pl.ros_pos_rank = ranks[pl.id]
         values = deps.values.values(ref, wk, settings.scoring)
         name = lambda pid: index.by_id(pid).name if pid and index.by_id(pid) else (pid or "(empty)")
 
@@ -73,9 +89,22 @@ def build_waiver_graph(deps: LineupDeps, checkpointer: BaseCheckpointSaver | Non
                 pending_adds |= set(t.adds)
                 pending_lines += [f"{name(a)}" + (f" (bid {t.faab_bid})" if t.faab_bid else "") for a in t.adds]
 
+        # Roster context for the playbook rules: who starts for me (by value), where I am hurt.
+        cands = [Candidate(player=v.player, points=v.value, current_slot=v.on_roster_slot, available=True)
+                 for v in roster if v.on_roster_slot not in (Slot.IR, Slot.TAXI)]
+        optimal = optimize_lineup(settings.starting_slots, cands, close_margin=0.0)
+        my_starters = {a.player_id for a in optimal.assignments if a.player_id}
+        current_starters = {e.player_id for e in me.starters if e.player_id}
+        hurt = {index.by_id(pid).position for pid in current_starters | my_starters
+                if index.by_id(pid) and index.by_id(pid).injury_status.value in ("doubtful", "out", "ir", "pup")}
+        ctx = RosterContext(settings, my_starters | current_starters, hurt)  # what I start now counts too
+        all_players = list(index)
+        apply_rules(roster, list(available.values()), ctx,
+                    teammates_of=lambda pl: [x for x in all_players if x.team == pl.team and x.position == pl.position and x.id != pl.id])
+
         budget = me.faab_remaining if settings.waiver_type is WaiverType.FAAB else None
         rivals = [t.faab_remaining for t in teams if t.id != me.id and t.faab_remaining is not None]
-        claims = plan_claims(settings, roster, pool, budget, rivals, max_claims=max_claims, pending_adds=pending_adds)
+        claims = plan_claims(settings, roster, pool, budget, rivals, max_claims=max_claims, pending_adds=pending_adds, ctx=ctx)
         claims += speculative_adds(trends, available, roster, settings, budget, replacement_levels(pool), max_adds=2,
                                    pending_adds=pending_adds, already={c.add.player.id for c in claims})
 
@@ -101,7 +130,8 @@ def build_waiver_graph(deps: LineupDeps, checkpointer: BaseCheckpointSaver | Non
                 continue
             ev = [f"{add.name} {c.add.value} ppg ROS [{c.add.source}] ({add.position}, {add.team or 'no team'}){' — on bye next week' if c.add.bye_next else ''}"]
             if drop:
-                ev.append(f"{drop.name} {c.drop.value} ppg ROS [{c.drop.source}]" + (f", {drop.injury_status}" if drop.injury_status.value != "healthy" else ""))
+                why_drop = c.drop.construction or ("cheapest unheld player" if not c.drop.potential else "note: " + "; ".join(c.drop.potential))
+                ev.append(f"{drop.name} {c.drop.value} ppg ROS [{c.drop.source}]" + (f", {drop.injury_status}" if drop.injury_status.value != "healthy" else "") + f" — {why_drop}")
             if c.displaces:
                 ev.append(f"would start over {name(c.displaces)}")
             ev += c.notes
@@ -112,7 +142,9 @@ def build_waiver_graph(deps: LineupDeps, checkpointer: BaseCheckpointSaver | Non
                           + (f" for {drop.name}" if drop else ""), evidence=ev,
             ).model_dump(mode="json"))
 
-        drops = [f"{v.player.name} ({v.value} ppg)" for v in drop_candidates(settings, roster)[:3]]
+        drops = [f"{v.player.name} ({v.value} ppg" + (f", {v.construction}" if v.construction else "") + ")"
+                 for v in drop_candidates(settings, roster)[:3]]
+        holds = [f"{v.player.name}: {v.holds[0]}" for v in sorted(roster, key=lambda v: v.value) if v.holds][:4]
         trending_lines = []
         for t in trends:
             v = available.get(t.player_id)
@@ -138,7 +170,8 @@ def build_waiver_graph(deps: LineupDeps, checkpointer: BaseCheckpointSaver | Non
         summary = {"team": me.name, "week": wk, "budget": budget, "priority": me.waiver_priority,
                    "waiver_type": settings.waiver_type, "values": deps.values.line(),
                    "drop_candidates": drops, "pending": pending_lines, "verify": verify,
-                   "trending": trending_lines, "trending_drops": trending_drops,
+                   "trending": trending_lines, "trending_drops": trending_drops, "holds": holds,
+                   "hurt_positions": sorted(str(x) for x in hurt),
                    "projected_before": 0, "projected_after": 0, "first_kickoff": deps.schedule_for_week(ref.season, wk).first_kickoff.isoformat(),
                    "warnings": [], "flags": [], "close_calls": []}
         return {"proposals": proposals, "summary": summary, "week": wk}
