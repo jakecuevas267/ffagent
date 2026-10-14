@@ -174,6 +174,23 @@ passing it.
 - [ ] Data sources still wanted: defense-vs-position matchup strength, Vegas spreads and implied totals,
       usage (snap/target/carry share, red-zone touches), a timestamped news feed.
 
+### Manager tendency mining from past seasons
+The platforms keep prior seasons, so the manager's past decisions are a labeled dataset that
+nobody has to write down. Derive tendencies per workflow, conditioned on format, and store them in
+the DB as facts for the advise node and as hindsight datasets for Phase C.
+- [ ] Sleeper: walk each league's `previous_league_id` chain; per season pull settings, weekly matchups
+      (every lineup the manager set, with actual points), transactions (claims, bids, adds, drops,
+      trades), rosters. No auth.
+- [ ] ESPN: `leagueHistory` for prior seasons with the same views, same cookies.
+- [ ] Lineups: deviation from projection-optimal and whether it paid; Questionable starts by slate;
+      flex preference by position; floor/ceiling behaviour when favored vs underdog.
+- [ ] Waivers: claim frequency, positions chased, FAAB bid sizes and win rate, how fast pickups were
+      cut, what was held through injuries, how trends preceded adds.
+- [ ] Trades: frequency, what is given and received, timing vs the deadline.
+- [ ] Store as a per-manager, per-format profile in SQLite; expose a `ffagent history` command to
+      import and summarize; the node receives the relevant slice as "what this manager has done".
+- [ ] Reuse the imported seasons as Phase C hindsight evals from day one.
+
 ### Notifications
 - [ ] Discord notifier: post the review payload, approve/reject by reaction or reply.
 - [ ] Until then, `--watch` in a terminal is the game-day channel.

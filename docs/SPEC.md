@@ -300,6 +300,7 @@ Built as vertical slices, in the order the features are used during a week. Each
 
 ## 11. Decisions log
 
+- 2026-10-14: Past seasons on both platforms will be mined for the manager's own tendencies (lineups, waivers, trades, conditioned on format) into the DB, as facts for the advise node and as hindsight eval data.
 - 2026-10-14: An LLM `advise` node joins slices 1, 3 and 4. The deterministic layer produces the candidate set with facts (projections, matchup, expert rank spread as a floor/ceiling proxy, injury and practice reports, trends, my-vs-opponent projected totals) and validates legality; the node ranks and explains using a user-owned playbook (principles plus annotated examples) and the user's recent decisions as few-shot context. No fine-tuning: the decision log is too small and the behaviour must stay auditable. Supersedes "no LLM in slice 1": lineups are judgment (matchup, floor vs ceiling against the opponent, positional value), not arithmetic.
 - 2026-10-08: Review surface is a CLI (`ffagent review`) for v1; Discord notifier is the first post-v1 addition.
 - 2026-10-08: v1 is run manually; automatic scheduling (`ffagent tick`) is post-v1.
