@@ -45,3 +45,9 @@ checklist you already approved instead of asking again.
 ## License
 
 MIT. See [LICENSE](LICENSE).
+
+## Playbook
+
+`playbook/*.md` are the manager's own rules and annotated decisions, in plain language. The advise
+node reads them before ranking candidates and cites the principle it applied in each rationale. Edit
+them freely; they are the main way the agent learns how you think.
