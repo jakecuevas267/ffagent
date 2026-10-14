@@ -161,9 +161,18 @@ passing it.
 - [ ] Fallback if Upper Hand stalls: a manual CSV source (`rank,name,pos,team`) dropped in `data/rankings/`.
 - [ ] Freshness gate: a workflow that needs week-N rankings and only finds week N-1 should say so.
 
-### LLM close-call node (deliberately deferred)
-- [ ] Only where numbers tie: flex decisions inside the margin, trade message phrasing,
-      manager notices. Every player name it emits is validated against the roster first.
+### LLM advise node (slices 1, 3, 4) and the playbook
+- [ ] `advise` node: user playbook + candidate set with facts + league profile + recent decisions in;
+      structured, validated proposals with a named principle per rationale out. One node, three slices.
+- [ ] Playbook rules are format-conditional (discovered attributes), never league-specific; personal
+      playbooks are git-ignored, templates ship.
+- [ ] DB-backed league profile snapshot per season (settings as detected) for reproducible runs and evals.
+- [ ] Manager tendencies derived from the transactions feed (claim frequency, FAAB spend, trade activity),
+      stored per league in the DB; the generic form of "what the other managers do".
+- [ ] Extra facts for the node: expert rank spread (floor/ceiling proxy), practice reports and probability
+      of playing, my-vs-opponent projected totals; news endpoint probe.
+- [ ] Data sources still wanted: defense-vs-position matchup strength, Vegas spreads and implied totals,
+      usage (snap/target/carry share, red-zone touches), a timestamped news feed.
 
 ### Notifications
 - [ ] Discord notifier: post the review payload, approve/reject by reaction or reply.

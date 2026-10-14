@@ -10,3 +10,5 @@ data/
 dist/
 *.egg-info/
 ffagent.yaml
+playbook/*.md
+!playbook/*.example.md

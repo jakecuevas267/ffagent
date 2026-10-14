@@ -48,6 +48,8 @@ MIT. See [LICENSE](LICENSE).
 
 ## Playbook
 
-`playbook/*.md` are the manager's own rules and annotated decisions, in plain language. The advise
-node reads them before ranking candidates and cites the principle it applied in each rationale. Edit
-them freely; they are the main way the agent learns how you think.
+Copy `playbook/*.example.md` to `playbook/<name>.md` and write your own rules and annotated
+decisions in plain language. The advise node reads them before ranking candidates and cites the
+principle it applied in each rationale. Rules refer to league *formats* (dynasty, superflex, FAAB,
+scoring), which the agent discovers from the platform, never to a specific league, so a playbook
+works for anyone's leagues. Your own playbook files are git-ignored; only the templates ship.

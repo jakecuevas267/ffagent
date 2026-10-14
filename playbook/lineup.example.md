@@ -11,6 +11,12 @@ Questionables, and floor-vs-ceiling choices against my opponent, and names the p
 
 -
 
+## Format-conditional rules
+
+<!-- Same vocabulary as waivers.md: format, superflex, flex count, scoring. Never name a league. -->
+
+-
+
 ## Matchup rules
 
 -
@@ -26,7 +32,7 @@ Questionables, and floor-vs-ceiling choices against my opponent, and names the p
 ## Cases
 
 ### Case: <short title>
-- League / week:
+- Format / week:
 - Situation (my lineup, the alternative, opponent context):
 - Agent / projections said:
 - I did:
