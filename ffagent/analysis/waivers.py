@@ -17,7 +17,7 @@ from ffagent.analysis.rules import (
     same_backfield,
     swap_allowed,
 )
-from ffagent.domain.models import InjuryStatus, LeagueSettings, Player, Slot, WaiverType
+from ffagent.domain.models import InjuryStatus, LeagueSettings, Player, Position, Slot, WaiverType
 
 # Rest-of-season discounts: a status is mostly about this week, so the haircut is mild for short
 # absences and steep only for the designations that mean weeks (IR/PUP) or no team (NA).
@@ -162,10 +162,21 @@ def size_bid(claim: Claim, my_budget: int, rival_budgets: list[int], minimum: in
     return min(bid, my_budget)
 
 
+def swap_targets(roster: list[Valued], fa: Valued) -> list[Valued]:
+    """My starter at the same position, for a straight starter-for-starter swap (K/DEF streaming,
+    or any same-position upgrade). The fantasy-starter hold allows exactly this."""
+    out = []
+    for v in roster:
+        if v.player.position is fa.player.position and v.on_roster_slot not in (Slot.IR, Slot.TAXI) \
+                and v.droppable and v.player.droppable and all(h.startswith("fantasy-starter hold") for h in v.holds):
+            out.append(v)
+    return sorted(out, key=lambda v: v.value)
+
+
 def plan_claims(settings: LeagueSettings, roster: list[Valued], free_agents: list[Valued], my_budget: int | None,
                 rival_budgets: list[int], max_claims: int = 3, min_gain: float = MIN_GAIN,
                 pending_adds: set[str] = frozenset(), ctx: RosterContext | None = None) -> list[Claim]:
-    drops = drop_candidates(settings, roster)
+    base_drops = drop_candidates(settings, roster)
     replacement = replacement_levels(free_agents)
     claims: list[Claim] = []
     for fa in sorted(free_agents, key=lambda v: (-v.value, -v.trending)):
@@ -177,6 +188,11 @@ def plan_claims(settings: LeagueSettings, roster: list[Valued], free_agents: lis
             if (fa.player.depth_order or 9) >= (better[0].add.player.depth_order or 9):
                 better[0].notes.append(f"{fa.player.name} shares this backfield (RB#{fa.player.depth_order}); the starter is preferred")
                 continue
+        drops = base_drops
+        if fa.player.position in (Position.K, Position.DEF):
+            drops = swap_targets(roster, fa)  # K/DEF only ever swap for the same position
+        elif ctx is not None:
+            drops = base_drops + [t for t in swap_targets(roster, fa) if t not in base_drops]
         c = evaluate_add(settings, roster, fa, drops, replacement, ctx)
         if c is None or c.gain < min_gain:
             continue

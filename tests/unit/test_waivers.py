@@ -257,3 +257,25 @@ class TestRulesInPlanning:
         apply_rules(roster, [fa], hurt)
         g2 = evaluate_add(settings(), roster, fa, drop_candidates(settings(), roster), repl, hurt).gain
         assert g2 > g1
+
+
+class TestStreaming:
+    def test_defense_can_be_swapped_for_a_better_defense_despite_the_starter_hold(self, roster):
+        from ffagent.analysis.waivers import apply_rules
+        colts = V("colts", Position.DEF, 9.0)
+        starters = {"qb1", "rb1", "rb2", "wr1", "wr2", "te1", "wr3", "k1", "def1"}
+        from ffagent.analysis.rules import RosterContext
+        ctx = RosterContext(settings(), starters, set())
+        apply_rules(roster, [colts], ctx)
+        assert roster[8].holds  # def1 is held as my starter...
+        claims = plan_claims(settings(), roster, [colts], 100, [], ctx=ctx)
+        assert [(c.add.player.id, c.drop.player.id, c.role) for c in claims] == [("colts", "def1", "starter")]  # ...but a DEF-for-DEF upgrade is allowed
+
+    def test_defense_does_not_replace_a_skill_player(self, roster):
+        from ffagent.analysis.rules import RosterContext
+        from ffagent.analysis.waivers import apply_rules
+        colts = V("colts", Position.DEF, 9.0)
+        ctx = RosterContext(settings(), set(), set())
+        apply_rules(roster, [colts], ctx)
+        claims = plan_claims(settings(), roster, [colts], 100, [], ctx=ctx)
+        assert all(c.drop.player.position is Position.DEF for c in claims)
