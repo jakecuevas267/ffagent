@@ -174,7 +174,7 @@ passing it.
 - [ ] Data sources still wanted: defense-vs-position matchup strength, Vegas spreads and implied totals,
       usage (snap/target/carry share, red-zone touches), a timestamped news feed.
 
-### Manager tendency mining from past seasons
+### Manager tendency mining from past seasons (do together with the manager; old inactive ESPN leagues hold most of the history)
 The platforms keep prior seasons, so the manager's past decisions are a labeled dataset that
 nobody has to write down. Derive tendencies per workflow, conditioned on format, and store them in
 the DB as facts for the advise node and as hindsight datasets for Phase C.
