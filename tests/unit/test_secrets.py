@@ -89,3 +89,10 @@ def test_from_env_spec(monkeypatch):
     assert [b.name for b in Secrets.from_env().backends] == ["env"]
     with pytest.raises(ValueError):
         Secrets.from_env("vault")
+
+
+def test_earlier_backend_wins_even_under_an_alias(monkeypatch):
+    monkeypatch.setenv("FANTASY_INFORMATION_SOURCE_API_KEY", "from-env")
+    ssm = FakeSSM({"/ffagent/FANTASY_INFORMATION_SOURCE_KEY": "from-ssm"})   # stored under the alias name
+    s = Secrets([SSMBackend(ssm), EnvBackend()])
+    assert s.lookup("FANTASY_INFORMATION_SOURCE_API_KEY") == ("from-ssm", "ssm")

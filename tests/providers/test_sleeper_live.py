@@ -10,7 +10,7 @@ from ffagent.domain.models import LeagueRef, Platform
 from ffagent.providers.sleeper import SleeperClient, SleeperProvider
 
 pytestmark = pytest.mark.live
-USER = os.environ.get("FFAGENT_LIVE_SLEEPER_USER")
+USER = os.environ.get("FFAGENT_LIVE_SLEEPER_USER") or __import__("ffagent.secrets", fromlist=["get"]).get("FFAGENT_LIVE_SLEEPER_USER")
 
 
 @pytest.fixture(scope="module")

@@ -17,6 +17,7 @@ KNOWN = {
     "FANTASY_INFORMATION_SOURCE_API_KEY": "expert data API key",
     "ANTHROPIC_API_KEY": "LLM provider key (Anthropic)",
     "OPENAI_API_KEY": "LLM provider key (OpenAI), if llm.model uses it",
+    "FFAGENT_LIVE_SLEEPER_USER": "optional: Sleeper username for the live contract tests",
 }
 ALIASES = {"FANTASY_INFORMATION_SOURCE_API_KEY": ["FANTASY_INFORMATION_SOURCE_KEY"]}
 SSM_PREFIX = "/ffagent/"
@@ -107,8 +108,11 @@ class Secrets:
         return cls(backends)
 
     def lookup(self, key: str) -> tuple[str | None, str | None]:
-        for name in [key] + ALIASES.get(key, []):
-            for b in self.backends:
+        """Backend order is the user's preference: a store earlier in the chain wins even if it holds
+        the value under an alias name."""
+        names = [key] + ALIASES.get(key, [])
+        for b in self.backends:
+            for name in names:
                 v = b.get(name)
                 if v:
                     return v, b.name
