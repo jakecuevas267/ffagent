@@ -185,3 +185,20 @@ def test_run_waivers_dry_run(tmp_path, capsys, monkeypatch):
     assert main(["--config", str(cfg), "run", "waivers", "--dry-run", "--now", "2026-10-13T09:00:00-06:00"]) == 0
     out = capsys.readouterr().out
     assert "waivers for week 6" in out and "FAAB 77 left" in out and "[1]" in out and "→ bid" in out
+
+
+def test_run_audit_dry_run(tmp_path, capsys, monkeypatch):
+    from ffagent.sources.values import ValueGateway
+    cfg = _injury_env(tmp_path, monkeypatch)
+    from ffagent import cli
+    real = cli.build_lineup_deps
+
+    def with_values(config, providers, store=None):
+        deps = real(config, providers, store)
+        for d in deps.values():
+            d.values = ValueGateway(d.projections, None, "Sleeper")
+        return deps
+    monkeypatch.setattr("ffagent.cli.build_lineup_deps", with_values)
+    assert main(["--config", str(cfg), "run", "audit", "--dry-run", "--now", "2026-10-10T12:00:00-06:00"]) == 0
+    out = capsys.readouterr().out
+    assert "lineup audit week 5" in out and "DEF empty slot" in out and "→ Message " in out

@@ -32,6 +32,7 @@ platform numbers fill the rest, and each proposal says which source it used.
 .venv/bin/ffagent run waivers                    # Tuesday: claims with drops and bids, by rest-of-season value
 .venv/bin/ffagent run waivers --no-llm           # same, deterministic rules only (no advise node)
 .venv/bin/ffagent run trades                     # offers that help my lineup and a partner's, with a message to send
+.venv/bin/ffagent run audit                      # every other team's lineup: byes, injured starters, empty slots, notes to send
 ```
 
 The advise node uses the model in `ffagent.yaml` (`llm.model`, default Claude) with its provider key

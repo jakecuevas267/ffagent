@@ -389,6 +389,64 @@ def cmd_run_trades(config: Config, args) -> int:
     return 0
 
 
+def cmd_run_audit(config: Config, args) -> int:
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    from langgraph.checkpoint.memory import MemorySaver
+    from langgraph.types import Command
+
+    from ffagent.graphs.audit import build_audit_graph, thread_id
+    from ffagent.review.cli import collect_decisions, localize, print_checklist
+    from ffagent.store.db import Store
+
+    providers = build_providers(config)
+    tz = ZoneInfo(config.timezone)
+    store = None if args.dry_run else Store(config.data_dir / "ffagent.sqlite")
+    deps_by_platform = build_lineup_deps(config, providers, store)
+    refs = _select_refs(config, providers, args.league)
+    if refs is None:
+        return 2
+    now = datetime.fromisoformat(args.now) if args.now else _now()
+    saver = MemorySaver() if args.dry_run else store.checkpointer()
+
+    for ref in refs:
+        deps = deps_by_platform[ref.platform]
+        week = _week_for(deps, ref, args.week)
+        graph = build_audit_graph(deps, saver, include_me=args.include_me)
+        cfg = {"configurable": {"thread_id": thread_id(ref, week, now)}}
+        try:
+            out = graph.invoke({"league": ref.model_dump(mode="json"), "week": week, "now": now.isoformat()}, cfg)
+        except AuthExpired as e:
+            print(f"{ref.name}: {e}", file=sys.stderr)
+            continue
+        if out.get("error"):
+            print(f"\n== {ref.name}: {out['error']}")
+            continue
+        s = out["summary"]
+        print(f"\n== {ref.name} — lineup audit week {week} — {s['teams_checked']} teams checked — {now.astimezone(tz).strftime('%a %H:%M %Z')}")
+        for line in s.get("report", []):
+            print(f"   • {localize(line, tz)}")
+        if not s.get("report"):
+            print("   every lineup is clean")
+        if "__interrupt__" not in out:
+            if s.get("report"):
+                print("   nothing new to send" + (f" ({s['locked_only']} teams only have locked problems)" if s.get("locked_only") else ""))
+            continue
+        payload = out["__interrupt__"][0].value
+        for n, p in enumerate(payload["proposals"], 1):
+            print(f"\n   [{n}] {p['rationale']}")
+            for e in p["evidence"]:
+                print(f"       - {e}")
+            print(f"       → {p['payload']['step']}")
+        if args.dry_run:
+            continue
+        decisions = collect_decisions(payload["proposals"], auto_approve=args.auto_approve)
+        final = graph.invoke(Command(resume=decisions), cfg)
+        print_checklist(ref.name, final.get("checklist", []))
+    return 0
+
+
 def cmd_run_injury(config: Config, args) -> int:
     from datetime import datetime, timedelta
     from zoneinfo import ZoneInfo
@@ -481,7 +539,7 @@ def main(argv: list[str] | None = None) -> int:
     lg.add_argument("--json", action="store_true")
     lg.add_argument("--all", action="store_true", help="show every team's roster, not just mine")
     run = sub.add_parser("run", help="run a workflow now")
-    run.add_argument("workflow", choices=["lineup", "injury", "waivers", "trades"])
+    run.add_argument("workflow", choices=["lineup", "injury", "waivers", "trades", "audit"])
     run.add_argument("--league", help="league name or id; default all")
     run.add_argument("--week", type=int)
     run.add_argument("--now", help="ISO timestamp override (testing)")
@@ -491,6 +549,7 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--watch", action="store_true", help="injury: keep checking until the day's last kickoff")
     run.add_argument("--interval", type=int, default=15, help="injury --watch: minutes between checks")
     run.add_argument("--no-llm", action="store_true", help="skip the advise node; deterministic proposals only")
+    run.add_argument("--include-me", action="store_true", help="audit: include my own team")
     args = ap.parse_args(argv)
 
     if getattr(args, "no_llm", False):
@@ -510,6 +569,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_run_waivers(config, args)
     if args.cmd == "run" and args.workflow == "trades":
         return cmd_run_trades(config, args)
+    if args.cmd == "run" and args.workflow == "audit":
+        return cmd_run_audit(config, args)
     return 1
 
 

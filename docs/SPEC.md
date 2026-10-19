@@ -290,7 +290,7 @@ Built as vertical slices, in the order the features are used during a week. Each
 - **M3 Injury start/sit (game days).** Status snapshots and diffs, necessary-moves-only replacement search, rejected-move memory for the week, verification of approved lineup moves, `--watch` loop for a game day. *Built 2026-10-08; first live use pending a game day.*
 - **M4 Waivers (Tuesday).** Free-agent ranking, need scoring, drop candidates, FAB sizing, fallback chains. *Built 2026-10-09; first live use Tue 10/13.*
 - **M5 Trade targets.** Need/surplus per team, partner matching, fairness band, drafted messages. *Built 2026-10-19, advise-first.*
-- **M6 League audit.** Every team's lineup checked for byes, injuries and empty slots; manager notices.
+- **M6 League audit.** Every team's lineup checked for byes, injuries and empty slots; manager notices. *Built 2026-10-19.*
 - **M7 ESPN provider.** *Done 2026-10-08:* settings, teams, lineups, free agents, matchups and ESPN's own league-scored weekly projections, from recorded (scrubbed) fixtures of two real leagues. Transactions view still TODO. Each later slice is checked on both platforms.
 - **Phase 0 Credentials.** `SecretsProvider` with env, OS keyring and AWS SSM Parameter Store (SecureString, standard tier, free) backends; `ffagent secrets set/check`; no secret read bypasses it.
 - **Phase A Docker.** Containerized CLI, compose with `data/` volume, CI builds the image.
@@ -307,6 +307,7 @@ Built as vertical slices, in the order the features are used during a week. Each
 
 ## 11. Decisions log
 
+- 2026-10-19: Slice 5 (`ffagent run audit`) built: bye / Out / IR / suspended / Doubtful starters and empty slots for every team, fixable vs locked, bench fix by value, friendly notice per manager; approved notices not repeated without a new issue; `--include-me`. Covers commissioner-only leagues.
 - 2026-10-19: Slice 4 (`ffagent run trades`) built: deterministic offers that help both lineups, advised and messaged by the LLM with `playbook/trades.md`.
 - 2026-10-19: Matchup dashboard (live scoring, computed win probability) added as Phase B2, after the UI. Defense streaming is a weekly standing rule.
 - 2026-10-14: Advise node built for waivers (playbook + facts + recent decisions → validated, principle-cited proposals; deterministic fallback). Recent performance (points, snap share, targets) from Sleeper's weekly stats for every platform.

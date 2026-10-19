@@ -24,8 +24,8 @@ safer than a file, and is open source so anyone with a Sleeper or ESPN league ca
 | Slice 1 — lineup (Thursday lock) | Done, used live on all 6 leagues |
 | Slice 2 — injury start/sit + IR housekeeping | Done, committed; first real game-day use Sun 10/11 |
 | Slice 3 — waivers (Tuesday) | Built; first live use Tue 10/13 |
-| Slice 4 — trade targets | Built (advise-first); first live use pending |
-| Slice 5 — league-wide lineup audit | Not started |
+| Slice 4 — trade targets | Built (advise-first); live-checked 10/19 |
+| Slice 5 — league-wide lineup audit | Built; first live use pending |
 | Expert source | FantasyAPISource (premium) through the projection gateway; Upper Hand still pending access |
 | Review surface | CLI only |
 | Scheduling | Manual (`ffagent run …`, `--watch` for game days) |
@@ -75,9 +75,8 @@ Check every team's lineup for byes, Out/IR/Doubtful starters and empty slots; dr
 per affected manager for the user to send. Also covers commissioner-only leagues,
 where nothing else applies.
 
-- [ ] Both providers already expose every team's lineup; this is mostly analysis plus a new
-      `manager_notice` proposal kind.
-- [ ] "Already told them this week" memory, so a manager who leaves a player in is not nagged.
+- [x] `manager_notice` proposals from every team's lineup (10/19).
+- [x] "Already told them this week" memory via approved notices' issue keys.
 
 ## After the five slices, in this order
 
