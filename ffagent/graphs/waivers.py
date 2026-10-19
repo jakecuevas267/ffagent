@@ -163,7 +163,7 @@ def build_waiver_graph(deps: LineupDeps, checkpointer: BaseCheckpointSaver | Non
                 stream_line = f"DEF stream: {st.add.player.name} over {st.drop.player.name} ({st.reason})"
             elif my_defs:
                 cur = min(my_defs, key=lambda v: (def_ranks.get(v.player.id, 999), -v.value))
-                stream_line = f"DEF stream: keep {cur.player.name}" + (f" (expert DST #{def_ranks[cur.player.id]})" if cur.player.id in def_ranks else f" ({cur.player.value} ppg next week)")
+                stream_line = f"DEF stream: keep {cur.player.name}" + (f" (expert DST #{def_ranks[cur.player.id]})" if cur.player.id in def_ranks else f" ({cur.value} ppg next week)")
             claims = [c for c in claims if c.add.player.position is not Position.DEF]  # the stream owns DEF decisions
 
         advice_line, watch_lines, questioned = None, [], []

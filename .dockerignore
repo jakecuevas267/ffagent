@@ -1,0 +1,14 @@
+.venv
+.git
+data
+.env
+ffagent.yaml
+playbook/*.md
+!playbook/*.example.md
+__pycache__
+*.pyc
+.pytest_cache
+.ruff_cache
+*.egg-info
+waivers-review.txt
+lineup-review.txt

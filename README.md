@@ -7,6 +7,23 @@ a league; you make the moves.
 
 Design: [docs/SPEC.md](docs/SPEC.md).
 
+## Try it in one command
+
+No leagues, no keys, no accounts: every workflow runs on recorded data with a fixed clock.
+
+```bash
+docker compose run --rm ffagent demo
+```
+
+Or without Docker:
+
+```bash
+python3 -m venv .venv && .venv/bin/pip install -e . && .venv/bin/ffagent demo
+```
+
+Add `--interactive` to approve or reject each proposal yourself, `--workflow waivers` for one
+workflow, and set `ANTHROPIC_API_KEY` to watch the advise node apply the example playbook.
+
 ## Setup
 
 ```bash
@@ -21,6 +38,9 @@ see [docs/CREDENTIALS.md](docs/CREDENTIALS.md) and `ffagent secrets check`.
 Projections come from Sleeper and ESPN by default. Set `FANTASY_INFORMATION_SOURCE_API_KEY` to a
 FantasyAPISource API key (premium tier) and their projections take over for every player they cover; the
 platform numbers fill the rest, and each proposal says which source it used.
+
+With Docker, the same commands run as `docker compose run --rm ffagent <command>`; `data/` is
+mounted for state and `~/.aws` read-only for SSM-backed secrets.
 
 ## Use
 

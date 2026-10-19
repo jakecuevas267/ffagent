@@ -12,3 +12,4 @@ dist/
 ffagent.yaml
 playbook/*.md
 !playbook/*.example.md
+*-review.txt

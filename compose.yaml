@@ -1,0 +1,22 @@
+services:
+  ffagent:
+    build: .
+    image: ffagent:local
+    # `docker compose run ffagent demo` works with nothing configured.
+    # For real leagues: copy ffagent.example.yaml to ffagent.yaml and set .env (see docs/CREDENTIALS.md).
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      - FFAGENT_SECRETS=${FFAGENT_SECRETS:-env}
+      - FFAGENT_SSM_REGION=${FFAGENT_SSM_REGION:-}
+      - AWS_PROFILE=${AWS_PROFILE:-}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-}
+    volumes:
+      - ./data:/app/data
+      - ./ffagent.yaml:/app/ffagent.yaml:ro
+      - ./playbook:/app/playbook:ro
+      - ${HOME}/.aws:/home/app/.aws:ro   # SSM via your AWS profile; on a host, a role replaces this
+    stdin_open: true
+    tty: true

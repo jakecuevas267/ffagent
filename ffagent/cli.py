@@ -6,6 +6,7 @@ import json
 import os
 import sys
 from datetime import UTC
+from pathlib import Path
 
 from ffagent.config import Config, load_config
 from ffagent.domain.identity import PlayerIndex
@@ -574,6 +575,34 @@ def cmd_secrets(config: Config, args) -> int:
     return 0
 
 
+def cmd_demo(args) -> int:
+    """Run every workflow on recorded fixtures with a fixed clock. No credentials, no network."""
+    import argparse as _ap
+    import tempfile
+
+    import ffagent.cli as me
+    from ffagent.demo import CLOCKS, build_demo_deps, build_demo_providers, demo_config
+
+    data_dir = Path(tempfile.mkdtemp(prefix="ffagent-demo-"))
+    config = demo_config(data_dir)
+    me.build_providers = lambda config: build_demo_providers()
+    me.build_lineup_deps = lambda config, providers, store=None: build_demo_deps(config, providers, store)
+    workflows = ["lineup", "injury", "waivers", "trades", "audit"] if args.workflow == "all" else [args.workflow]
+    print("ffagent demo: recorded fixtures, fixed clock, no credentials. Leagues: a synthetic Sleeper league on a real "
+          "player database and a scrubbed ESPN league. Proposals are auto-approved unless --interactive.\n")
+    runners = {"lineup": cmd_run_lineup, "injury": cmd_run_injury, "waivers": cmd_run_waivers,
+               "trades": cmd_run_trades, "audit": cmd_run_audit}
+    for wf in workflows:
+        print(f"\n{'=' * 78}\n  {wf.upper()}  (clock {CLOCKS[wf]})\n{'=' * 78}")
+        ns = _ap.Namespace(league=None, week=None, now=CLOCKS[wf], dry_run=False, auto_approve=not args.interactive,
+                           again=True, watch=False, interval=15, no_llm=args.no_llm, include_me=False)
+        rc = runners[wf](config, ns)
+        if rc:
+            return rc
+    print(f"\ndemo state written under {data_dir} (safe to delete)")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     from dotenv import load_dotenv
     load_dotenv()  # .env is one backend; keyring and SSM are the others (FFAGENT_SECRETS)
@@ -597,6 +626,10 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--interval", type=int, default=15, help="injury --watch: minutes between checks")
     run.add_argument("--no-llm", action="store_true", help="skip the advise node; deterministic proposals only")
     run.add_argument("--include-me", action="store_true", help="audit: include my own team")
+    demo = sub.add_parser("demo", help="run every workflow on recorded fixtures; no credentials needed")
+    demo.add_argument("--workflow", choices=["all", "lineup", "injury", "waivers", "trades", "audit"], default="all")
+    demo.add_argument("--interactive", action="store_true", help="prompt for each proposal instead of auto-approving")
+    demo.add_argument("--no-llm", action="store_true", help="deterministic rules only")
     sec = sub.add_parser("secrets", help="where credentials live; set or check them")
     sec.add_argument("action", choices=["set", "check"])
     sec.add_argument("name", nargs="?", help="secret name for `set`, e.g. ESPN_S2")
@@ -606,6 +639,8 @@ def main(argv: list[str] | None = None) -> int:
 
     if getattr(args, "no_llm", False):
         os.environ["FFAGENT_NO_LLM"] = "1"
+    if args.cmd == "demo":
+        return cmd_demo(args)
     try:
         config = load_config(args.config)
     except FileNotFoundError:
