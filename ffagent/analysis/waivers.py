@@ -257,3 +257,34 @@ def speculative_adds(trending, available: dict, roster: list[Valued], settings: 
         if len(out) >= max_adds:
             break
     return out
+
+
+STREAM_EDGE = 0.5  # projected ppg a streaming option must beat my starter by, when ranks do not decide
+
+
+@dataclass
+class Stream:
+    add: Valued
+    drop: Valued
+    add_rank: int | None
+    drop_rank: int | None
+    reason: str
+
+
+def stream_position(mine: list[Valued], available: list[Valued], ranks: dict[str, int], min_edge: float = STREAM_EDGE) -> Stream | None:
+    """Weekly streaming (defenses): swap my starter for the best available option when it is ranked
+    better by the experts, or, without ranks, projects better by a real margin."""
+    if not mine or not available:
+        return None
+    def key(v: Valued):
+        return (ranks.get(v.player.id, 999), -v.value)
+    best = min(available, key=key)
+    current = min(mine, key=key)  # my best option at the position
+    br, cr = ranks.get(best.player.id), ranks.get(current.player.id)
+    if br is not None and cr is not None:
+        if br < cr:
+            return Stream(best, current, br, cr, f"ranked #{br} this week vs my #{cr}")
+        return None
+    if best.value - current.value >= min_edge:
+        return Stream(best, current, br, cr, f"projects {best.value} vs my {current.value} this week")
+    return None

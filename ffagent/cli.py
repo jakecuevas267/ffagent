@@ -254,7 +254,7 @@ def cmd_run_waivers(config: Config, args) -> int:
         deps = deps_by_platform[ref.platform]
         week = _week_for(deps, ref, args.week)
         wk = target_week(deps.schedule_for_week, ref.season, week, now)
-        graph = build_waiver_graph(deps, saver, max_claims=config.waivers.max_claims)
+        graph = build_waiver_graph(deps, saver, max_claims=config.waivers.max_claims, stream_defense=config.waivers.stream_defense)
         cfg = {"configurable": {"thread_id": thread_id(ref, wk)}}
         prior = graph.get_state(cfg)
         if prior.values and not prior.next and not args.again:
@@ -278,6 +278,8 @@ def cmd_run_waivers(config: Config, args) -> int:
             print(f"   pending claims: {', '.join(s['pending'])}")
         for v in s.get("verify", []):
             print(f"   ✓ last review: {v}")
+        if s.get("stream"):
+            print(f"   {s['stream']}")
         if s.get("advise"):
             print(f"   {s['advise']}")
         for w in s.get("watch", []):

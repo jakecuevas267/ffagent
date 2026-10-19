@@ -36,7 +36,8 @@ def target_week(schedule_for_week, season: int, week: int, now: datetime) -> int
     return week + 1 if now > sched.last_kickoff + timedelta(hours=4) else week
 
 
-def build_waiver_graph(deps: LineupDeps, checkpointer: BaseCheckpointSaver | None = None, max_claims: int = 3):
+def build_waiver_graph(deps: LineupDeps, checkpointer: BaseCheckpointSaver | None = None, max_claims: int = 3,
+                       stream_defense: bool = True):
     def analyze(state: ReviewState) -> dict[str, Any]:
         ref = LeagueRef.model_validate(state["league"])
         week = state["week"]
@@ -128,6 +129,43 @@ def build_waiver_graph(deps: LineupDeps, checkpointer: BaseCheckpointSaver | Non
 
         rejected = deps.store.rejected_fingerprints(ref.key, wk) if deps.store is not None else set()
         proposals = []
+
+        # Defense is a weekly stream: compare my DEF with the best available one every week.
+        stream_line = None
+        if stream_defense and Slot.DEF in settings.roster_slots:
+            from ffagent.analysis.waivers import stream_position
+            from ffagent.domain.models import Position
+            my_defs = [v for v in roster if v.player.position is Position.DEF and v.on_roster_slot not in (Slot.IR, Slot.TAXI)]
+            avail_defs = [v for v in available.values() if v.player.position is Position.DEF and v.player.id not in pending_adds]
+            def_ranks = {}
+            if expert is not None and hasattr(expert, "weekly_ranks"):
+                try:
+                    def_ranks = expert.weekly_ranks(ref, wk, "DST")
+                except Exception:  # noqa: BLE001
+                    def_ranks = {}
+            st = stream_position(my_defs, avail_defs, def_ranks)
+            if st is not None:
+                how = (f"bid {max(1, round((budget or 0) * 0.02))} of {budget} FAAB" if budget is not None
+                       else "free-agent pickup now (no priority spent)" if st.add.on_waivers is False
+                       else "free-agent pickup after waivers clear (no priority spent)")
+                payload = {"slot": "DEF", "player_in": st.add.player.id, "player_in_name": st.add.player.name,
+                           "player_out": st.drop.player.id, "player_out_name": st.drop.player.name,
+                           "bid": max(1, round((budget or 0) * 0.02)) if budget is not None else None, "use_priority": False,
+                           "gain": round(st.add.value - st.drop.value, 2), "role": "stream",
+                           "step": f"{how}: add {st.add.player.name}, drop {st.drop.player.name}"}
+                if fingerprint("waiver_claim", payload) not in rejected:
+                    proposals.append(ProposedAction(
+                        id=f"{thread_id(ref, wk)}:def", kind="waiver_claim", league_key=ref.key, payload=payload,
+                        rationale=f"Stream {st.add.player.name} at DEF this week over {st.drop.player.name} ({st.reason}) [defense streams weekly]",
+                        evidence=[f"{st.add.player.name} {st.add.value} ppg next week" + (f", expert DST #{st.add_rank}" if st.add_rank else ""),
+                                  f"{st.drop.player.name} {st.drop.value} ppg next week" + (f", expert DST #{st.drop_rank}" if st.drop_rank else "")],
+                    ).model_dump(mode="json"))
+                stream_line = f"DEF stream: {st.add.player.name} over {st.drop.player.name} ({st.reason})"
+            elif my_defs:
+                cur = min(my_defs, key=lambda v: (def_ranks.get(v.player.id, 999), -v.value))
+                stream_line = f"DEF stream: keep {cur.player.name}" + (f" (expert DST #{def_ranks[cur.player.id]})" if cur.player.id in def_ranks else f" ({cur.player.value} ppg next week)")
+            claims = [c for c in claims if c.add.player.position is not Position.DEF]  # the stream owns DEF decisions
+
         advice_line, watch_lines, questioned = None, [], []
         advised = deps.adviser is not None and deps.adviser.enabled
         if advised:
@@ -262,7 +300,7 @@ def build_waiver_graph(deps: LineupDeps, checkpointer: BaseCheckpointSaver | Non
             for pl in deps.store.approved_payloads(ref.key, wk, "waivers"):
                 verify.append(f"{pl['player_in_name']}: {'on roster' if pl['player_in'] in mine else 'not on roster (claim lost or not placed)'}")
         summary = {"team": me.name, "week": wk, "budget": budget, "priority": me.waiver_priority,
-                   "advise": advice_line, "watch": watch_lines, "holds_questioned": questioned,
+                   "advise": advice_line, "watch": watch_lines, "holds_questioned": questioned, "stream": stream_line,
                    "waiver_type": settings.waiver_type, "values": deps.values.line(),
                    "drop_candidates": drops, "pending": pending_lines, "verify": verify,
                    "trending": trending_lines, "trending_drops": trending_drops, "holds": holds,

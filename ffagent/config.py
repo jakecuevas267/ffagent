@@ -57,6 +57,7 @@ class ScheduleConfig(BaseModel):
 
 class WaiverConfig(BaseModel):
     max_claims: int = 3
+    stream_defense: bool = True  # propose the best available DEF every week
 
 
 class Config(BaseModel):

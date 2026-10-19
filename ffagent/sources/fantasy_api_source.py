@@ -155,6 +155,18 @@ class FantasyAPISource:
         self._index_for_ref = index_for_ref  # (ref) -> PlayerIndex of that platform's players
         self.unresolved: list[str] = []
 
+    def weekly_ranks(self, ref, week: int, position: str = "DST") -> dict[str, int]:
+        """This week's expert consensus rank within a position (1 = best), keyed by platform id."""
+        index = self._index_for_ref(ref)
+        out: dict[str, int] = {}
+        for raw in self._c.rankings(ref.season, position, week=week):
+            ep = ExpertProjection(name=raw.get("player_name", ""), position=POSITIONS.get(raw.get("player_position_id"), Position.DEF),
+                                  team=raw.get("player_team_id"), yahoo_id=raw.get("player_yahoo_id"))
+            pl = resolve(ep, index)
+            if pl is not None and raw.get("rank_ecr"):
+                out[pl.id] = int(raw["rank_ecr"])
+        return out
+
     def ros_ranks(self, ref) -> dict[str, int]:
         """Rest-of-season rank within position (RB12 -> 12) keyed by the platform's player id."""
         index = self._index_for_ref(ref)

@@ -312,3 +312,29 @@ class TestStarterSwaps:
         assert plan_claims(settings(), roster, [meh], 100, [], ctx=ctx) == []
         good = V("good", Position.K, 10.5); apply_rules(roster, [good], ctx)
         assert plan_claims(settings(), roster, [good], 100, [], ctx=ctx)
+
+
+class TestDefenseStreaming:
+    def test_better_ranked_defense_is_streamed(self):
+        from ffagent.analysis.waivers import stream_position
+        mine = [V("kc", Position.DEF, 9.2, Slot.DEF)]
+        avail = [V("ind", Position.DEF, 8.9), V("cle", Position.DEF, 6.3)]
+        st = stream_position(mine, avail, {"kc": 9, "ind": 4, "cle": 20})
+        assert st and st.add.player.id == "ind" and "ranked #4" in st.reason
+
+    def test_worse_ranked_defense_is_not_streamed_even_if_it_projects_more(self):
+        from ffagent.analysis.waivers import stream_position
+        mine = [V("kc", Position.DEF, 8.0, Slot.DEF)]
+        assert stream_position(mine, [V("ind", Position.DEF, 9.0)], {"kc": 3, "ind": 7}) is None
+
+    def test_without_ranks_projection_edge_decides(self):
+        from ffagent.analysis.waivers import stream_position
+        mine = [V("kc", Position.DEF, 9.15, Slot.DEF)]
+        assert stream_position(mine, [V("ind", Position.DEF, 8.93)], {}) is None
+        st = stream_position(mine, [V("ind", Position.DEF, 9.8)], {})
+        assert st and "projects 9.8" in st.reason
+
+    def test_no_defense_slot_or_no_options(self):
+        from ffagent.analysis.waivers import stream_position
+        assert stream_position([], [V("ind", Position.DEF, 9.8)], {}) is None
+        assert stream_position([V("kc", Position.DEF, 9.0, Slot.DEF)], [], {}) is None

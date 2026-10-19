@@ -55,7 +55,9 @@ def test_proposes_claims_with_drops_and_bids(ref):
     assert props and all(p["kind"] == "waiver_claim" for p in props)
     for p in props:
         assert p["payload"]["bid"] is not None and p["payload"]["player_out"] is not None
-        assert "ppg ROS" in p["evidence"][0] and p["payload"]["step"].startswith("bid ")
+        assert p["payload"]["step"].startswith("bid ")
+        if p["payload"]["role"] != "stream":
+            assert "ppg ROS" in p["evidence"][0]
 
 
 def test_approved_claim_is_verified_next_run(ref):
@@ -122,7 +124,7 @@ def test_advise_node_proposals_replace_deterministic_ones(ref):
     # Find the deterministic candidate/drop pair the graph would offer, then have the "model" pick it with a principle.
     probe = build_waiver_graph(deps, MemorySaver())
     out, _ = run(probe, ref)
-    det = out["__interrupt__"][0].value["proposals"][0]
+    det = next(p for p in out["__interrupt__"][0].value["proposals"] if p["payload"]["role"] != "stream")
     llm = FakeLLM(AdviceOut(proposals=[Advice(add_id=det["payload"]["player_in"], drop_id=det["payload"]["player_out"], action="pickup",
                                                principle="RBs who start for their NFL team are pickups", rationale="He starts and my bench spot is dead.")],
                             watch=["Someone: check Sunday"], holds_questioned=["Nobody"]))
@@ -131,7 +133,7 @@ def test_advise_node_proposals_replace_deterministic_ones(ref):
     out2, _ = run(graph, ref)
     s = out2["summary"]
     assert s["advise"].startswith("advise: fake-model chose 1 of") and s["watch"] == ["Someone: check Sunday"]
-    props = out2["__interrupt__"][0].value["proposals"]
+    props = [p for p in out2["__interrupt__"][0].value["proposals"] if p["payload"]["role"] != "stream"]
     assert len(props) == 1 and props[0]["payload"]["principle"] and "[RBs who start" in props[0]["rationale"]
     assert props[0]["payload"]["player_in"] == det["payload"]["player_in"]
     human = llm.messages[1][1]
@@ -146,3 +148,30 @@ def test_advise_failure_falls_back_to_deterministic(ref):
     out, _ = run(build_waiver_graph(deps, MemorySaver()), ref)
     assert "showing the deterministic proposals" in out["summary"]["advise"]
     assert out["__interrupt__"][0].value["proposals"]
+
+
+def test_defense_stream_is_proposed_outside_the_claim_limit(ref):
+    deps = make_deps(Store())
+    # Give the expert ranks: my Bills DEF ranked 10th, an available defense ranked 2nd.
+    provider = deps.provider
+    avail_def = next(f for f in provider.free_agents(ref) if f.position == "DEF")
+
+    class FakeExpert:
+        name = "X"
+        def season(self, ref): return {}
+        def ros_ranks(self, ref): return {}
+        def weekly_ranks(self, ref, week, position="DST"): return {"BUF": 10, avail_def.id: 2}
+    deps.values.expert = FakeExpert()
+    graph = build_waiver_graph(deps, MemorySaver(), max_claims=1)
+    out, _ = run(graph, ref)
+    props = out["__interrupt__"][0].value["proposals"]
+    stream = [p for p in props if p["payload"]["role"] == "stream"]
+    assert len(stream) == 1 and stream[0]["payload"]["player_in"] == avail_def.id and stream[0]["payload"]["slot"] == "DEF"
+    assert "ranked #2" in stream[0]["rationale"] and out["summary"]["stream"].startswith("DEF stream: ")
+    assert len(props) == 2  # the stream plus the one allowed claim
+
+
+def test_defense_stream_can_be_switched_off(ref):
+    deps = make_deps(Store())
+    out, _ = run(build_waiver_graph(deps, MemorySaver(), stream_defense=False), ref)
+    assert out["summary"]["stream"] is None
