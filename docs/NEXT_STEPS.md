@@ -29,7 +29,7 @@ safer than a file, and is open source so anyone with a Sleeper or ESPN league ca
 | Expert source | FantasyAPISource (premium) through the projection gateway; Upper Hand still pending access |
 | Review surface | CLI only |
 | Scheduling | Manual (`ffagent run …`, `--watch` for game days) |
-| Credentials | resolver built (env / keyring / SSM); SSM setup on Jake's side pending |
+| Credentials | AWS SSM Parameter Store in use; `.env` holds only the backend selection |
 
 Tests: 192 offline, 4 opt-in live. Slices 1 and 2 are committed; slice 3 groundwork is not yet.
 
@@ -104,7 +104,7 @@ good products but another account for a solo project; HashiCorp Vault is overkil
 - [x] ESPN cookie probe in `check --probe`.
 - [x] Values never printed; `set` prompts without echo.
 - [x] docs/CREDENTIALS.md: AWS setup commands and the IAM policy.
-- [ ] Jake: create the SSM parameters and the read-only IAM identity, then switch `FFAGENT_SECRETS=ssm,env`.
+- [x] SSM parameters and the read-only `ffagent` IAM user created; `FFAGENT_SECRETS=ssm,env` live; `.env` holds no secrets (10/19).
 
 ### Phase A — Docker instead of venv
 Containerize the CLI so setup is `docker compose run ffagent …` on any machine, and so the UI and
