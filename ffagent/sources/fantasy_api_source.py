@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 import time
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
@@ -33,17 +32,20 @@ SCORING = {"ppr": "PPR", "half": "HALF", "std": "STD"}
 
 
 def api_key_from_env() -> str | None:
-    for var in KEY_VARS:
-        if os.environ.get(var):
-            return os.environ[var]
-    return None
+    from ffagent import secrets
+    return secrets.get(KEY_VARS[0])  # the resolver also consults the alias names
+
+
+def base_url_from_env() -> str | None:
+    from ffagent import secrets
+    return secrets.get(URL_VAR)
 
 
 class FantasyAPISourceClient:
     def __init__(self, api_key: str, base_url: str | None = None, http: httpx.Client | None = None,
                  cache_dir: Path | None = None, cache_hours: float = 6.0, clock=None,
                  min_interval: float = 1.1, sleep=None):
-        base_url = base_url or os.environ.get(URL_VAR)
+        base_url = base_url or base_url_from_env()
         if http is None and not base_url:
             raise RuntimeError(f"{URL_VAR} is not set; it must hold the data API base URL")
         self._http = http or httpx.Client(base_url=base_url, timeout=60, headers={"x-api-key": api_key})

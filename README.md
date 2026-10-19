@@ -15,6 +15,9 @@ cp ffagent.example.yaml ffagent.yaml   # add your leagues
 cp .env.example .env                   # ESPN cookies, LLM key, optional FantasyAPISource key
 ```
 
+Credentials can also live in the OS keyring or AWS SSM Parameter Store instead of `.env`:
+see [docs/CREDENTIALS.md](docs/CREDENTIALS.md) and `ffagent secrets check`.
+
 Projections come from Sleeper and ESPN by default. Set `FANTASY_INFORMATION_SOURCE_API_KEY` to a
 FantasyAPISource API key (premium tier) and their projections take over for every player they cover; the
 platform numbers fill the rest, and each proposal says which source it used.

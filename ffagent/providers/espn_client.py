@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import json
-import os
 from typing import Any
 
 import httpx
@@ -23,7 +22,8 @@ class ESPNClient:
 
     @classmethod
     def from_env(cls, season: int) -> ESPNClient:
-        return cls(season, os.environ.get("ESPN_S2"), os.environ.get("ESPN_SWID"))
+        from ffagent import secrets
+        return cls(season, secrets.get("ESPN_S2"), secrets.get("ESPN_SWID"))
 
     def _get(self, path: str, params: list[tuple[str, Any]] | None = None, filter: dict | None = None) -> Any:
         headers = {"X-Fantasy-Filter": json.dumps(filter)} if filter else None

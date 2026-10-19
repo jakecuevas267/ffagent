@@ -121,8 +121,9 @@ def build_lineup_deps(config: Config, providers: dict[str, object], store=None):
     from ffagent.sources.values import ValueGateway
 
     key = api_key_from_env()
+    from ffagent.sources.fantasy_api_source import base_url_from_env
     fp = (FantasyAPISourceClient(key, cache_dir=config.data_dir / "cache", cache_hours=config.expert_cache_hours)
-          if key and os.environ.get("FANTASY_INFORMATION_SOURCE_URL") else None)
+          if key and base_url_from_env() else None)
     # Sleeper's trending feed is the pickup-trend signal for every league; it needs no credentials.
     from ffagent.sources.stats import SleeperStats
 
@@ -529,9 +530,55 @@ def cmd_run_injury(config: Config, args) -> int:
     return 0
 
 
+def cmd_secrets(config: Config, args) -> int:
+    from ffagent.secrets import KNOWN, Secrets
+
+    s = Secrets.from_env()
+    chain = ",".join(b.name for b in s.backends)
+    if args.action == "set":
+        import getpass
+        value = getpass.getpass(f"{args.name}: ").strip() if args.value is None else args.value
+        if not value:
+            print("nothing set (empty value)", file=sys.stderr)
+            return 2
+        try:
+            where = s.set(args.name, value)
+        except RuntimeError as e:
+            print(str(e), file=sys.stderr)
+            return 2
+        print(f"{args.name} stored in {where}")
+        return 0
+    # check
+    print(f"secrets backends: {chain}")
+    missing = []
+    for f in s.check(KNOWN):
+        mark = f"found in {f.backend}" if f.backend else "missing"
+        print(f"  {f.key:<36} {mark:<18} {KNOWN[f.key]}")
+        if not f.backend:
+            missing.append(f.key)
+    for b in s.backends:
+        if getattr(b, "last_error", None):
+            print(f"  ! {b.name}: last error {b.last_error} (credentials/permissions?)")
+    if args.probe and s.get("ESPN_S2") and s.get("ESPN_SWID"):
+        from ffagent.providers.base import AuthExpired
+        from ffagent.providers.espn_client import ESPNClient
+        espn = [lc for lc in config.leagues if lc.platform == "espn"]
+        if espn:
+            try:
+                ESPNClient.from_env(config.season).league(espn[0].league_id, ["mStatus"])
+                print("  ESPN cookies: valid")
+            except AuthExpired:
+                print("  ! ESPN cookies: rejected (expired?) — refresh ESPN_S2 and ESPN_SWID")
+            except Exception as e:  # noqa: BLE001
+                print(f"  ? ESPN probe failed: {type(e).__name__}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     from dotenv import load_dotenv
-    load_dotenv()  # ESPN cookies, LLM keys; never read from ffagent.yaml
+    load_dotenv()  # .env is one backend; keyring and SSM are the others (FFAGENT_SECRETS)
+    from ffagent import secrets as _secrets
+    _secrets.secrets().export()  # LLM provider SDKs only read the environment
     ap = argparse.ArgumentParser(prog="ffagent")
     ap.add_argument("--config", default="ffagent.yaml")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -550,6 +597,11 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--interval", type=int, default=15, help="injury --watch: minutes between checks")
     run.add_argument("--no-llm", action="store_true", help="skip the advise node; deterministic proposals only")
     run.add_argument("--include-me", action="store_true", help="audit: include my own team")
+    sec = sub.add_parser("secrets", help="where credentials live; set or check them")
+    sec.add_argument("action", choices=["set", "check"])
+    sec.add_argument("name", nargs="?", help="secret name for `set`, e.g. ESPN_S2")
+    sec.add_argument("--value", help="value for `set` (prompted without echo if omitted)")
+    sec.add_argument("--probe", action="store_true", help="check: also test the ESPN cookies against a league")
     args = ap.parse_args(argv)
 
     if getattr(args, "no_llm", False):
@@ -559,6 +611,11 @@ def main(argv: list[str] | None = None) -> int:
     except FileNotFoundError:
         print(f"config not found: {args.config}", file=sys.stderr)
         return 2
+    if args.cmd == "secrets":
+        if args.action == "set" and not args.name:
+            print("secrets set needs a name", file=sys.stderr)
+            return 2
+        return cmd_secrets(config, args)
     if args.cmd == "leagues":
         return cmd_leagues(config, args)
     if args.cmd == "run" and args.workflow == "lineup":

@@ -202,3 +202,28 @@ def test_run_audit_dry_run(tmp_path, capsys, monkeypatch):
     assert main(["--config", str(cfg), "run", "audit", "--dry-run", "--now", "2026-10-10T12:00:00-06:00"]) == 0
     out = capsys.readouterr().out
     assert "lineup audit week 5" in out and "DEF empty slot" in out and "→ Message " in out
+
+
+def test_secrets_check_and_set(tmp_path, capsys, monkeypatch):
+    from ffagent import secrets as sec
+    from tests.unit.test_secrets import FakeKeyring
+    kr = FakeKeyring()
+    monkeypatch.setattr(sec.Secrets, "from_env", classmethod(lambda cls, spec=None, region=None: cls([sec.KeyringBackend(kr), sec.EnvBackend()])))
+    sec._default = None
+    cfg = tmp_path / "ffagent.yaml"; cfg.write_text("season: 2026\nleagues: []\n")
+    for v in ("ESPN_S2", "ESPN_SWID"):
+        monkeypatch.delenv(v, raising=False)
+    assert main(["--config", str(cfg), "secrets", "set", "ESPN_SWID", "--value", "{abc}"]) == 0
+    assert "ESPN_SWID stored in keyring" in capsys.readouterr().out and kr.store[("ffagent", "ESPN_SWID")] == "{abc}"
+    assert main(["--config", str(cfg), "secrets", "check"]) == 0
+    out = capsys.readouterr().out
+    assert "secrets backends: keyring,env" in out and "ESPN_SWID" in out and "found in keyring" in out and "ESPN_S2" in out and "missing" in out
+    sec._default = None
+
+
+def test_secrets_set_without_writable_backend_fails_clearly(tmp_path, capsys, monkeypatch):
+    from ffagent import secrets as sec
+    monkeypatch.setattr(sec.Secrets, "from_env", classmethod(lambda cls, spec=None, region=None: cls([sec.EnvBackend()])))
+    cfg = tmp_path / "ffagent.yaml"; cfg.write_text("season: 2026\nleagues: []\n")
+    assert main(["--config", str(cfg), "secrets", "set", "X", "--value", "y"]) == 2
+    assert "no writable backend" in capsys.readouterr().err

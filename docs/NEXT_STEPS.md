@@ -29,7 +29,7 @@ safer than a file, and is open source so anyone with a Sleeper or ESPN league ca
 | Expert source | FantasyAPISource (premium) through the projection gateway; Upper Hand still pending access |
 | Review surface | CLI only |
 | Scheduling | Manual (`ffagent run …`, `--watch` for game days) |
-| Credentials | `.env` |
+| Credentials | resolver built (env / keyring / SSM); SSM setup on Jake's side pending |
 
 Tests: 192 offline, 4 opt-in live. Slices 1 and 2 are committed; slice 3 groundwork is not yet.
 
@@ -99,13 +99,12 @@ Alternatives looked at and why not: GCP Secret Manager's free tier is 6 active v
 would exceed on the first rotation; Doppler (free, 3 users) and Infisical (free, 5 identities) are
 good products but another account for a solo project; HashiCorp Vault is overkill to self-host.
 
-- [ ] `ffagent/secrets.py`: `get(name)` resolving in order ssm → keyring → env, backend chosen by
-      `FFAGENT_SECRETS=ssm|keyring|env`; everything that reads `os.environ` for a secret goes through it.
-- [ ] `ffagent secrets set <name>` / `secrets check` commands, so cookies can be refreshed without
-      editing files; `check` reports which backend answered and which names are missing.
-- [ ] Early expiry detection for the ESPN cookies (one cheap authenticated call) surfaced by `check`.
-- [ ] Never log or print values; redact in errors (already the case for ESPN).
-- [ ] Docs: the AWS setup in five CLI commands, and the IAM policy JSON.
+- [x] `ffagent/secrets.py`: resolver over ssm / keyring / env in `FFAGENT_SECRETS` order; every credential read goes through it (10/19).
+- [x] `ffagent secrets set <name>` / `secrets check [--probe]`.
+- [x] ESPN cookie probe in `check --probe`.
+- [x] Values never printed; `set` prompts without echo.
+- [x] docs/CREDENTIALS.md: AWS setup commands and the IAM policy.
+- [ ] Jake: create the SSM parameters and the read-only IAM identity, then switch `FFAGENT_SECRETS=ssm,env`.
 
 ### Phase A — Docker instead of venv
 Containerize the CLI so setup is `docker compose run ffagent …` on any machine, and so the UI and
