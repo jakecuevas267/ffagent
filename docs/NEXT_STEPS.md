@@ -127,6 +127,24 @@ game-day watch as a live panel.
 - [ ] Settings page for `ffagent.yaml` values that are safe to edit (leads, thresholds, max claims).
 - [ ] Discord notifier can then just deep-link into the UI.
 
+### Phase B2 — Matchup dashboard (right after the UI)
+One screen showing every league where the manager has a team: this week's matchup, live score for
+both sides, points still to come, and the chance to win, updating through the game windows.
+- [ ] **Live scoring:** Sleeper weekly matchups carry live `points` per team and `players_points`;
+      ESPN's matchup/scoreboard views carry live totals and a live projected total. Poll on game
+      days (same cadence rules as the injury watch; Sleeper's rate limit is generous).
+- [ ] **Points to come:** for each side, the starters whose game has not started or is in progress,
+      with remaining projection (projection scaled by game progress for in-progress players).
+- [ ] **Win probability:** neither platform exposes one through its API, so compute it: current
+      score plus the sum of remaining projections per side, with per-player variance (expert rank
+      spread as the proxy already used elsewhere), Monte Carlo or a normal approximation; report
+      the probability and the swing players (whose outcome moves it most).
+- [ ] **Opponent context reused:** the same my-vs-their projected totals feed the lineup advise node
+      (favored → floor, underdog → ceiling), so this is built once and shared.
+- [ ] **UI:** a dashboard page with one card per league (score, probability, time remaining, swing
+      players), auto-refresh on game days, and a drill-down to both lineups with per-player status.
+- [ ] Standings and playoff picture per league as a secondary panel (records, points for, seed).
+
 ### Phase C — Evals (last, and a long one)
 Comprehensive evaluation of every workflow, deterministic and LLM-judged, with frozen weekly
 snapshots as the datasets. This is the step we spend real time on; nothing ships after it without

@@ -293,6 +293,7 @@ Built as vertical slices, in the order the features are used during a week. Each
 - **Phase 0 Credentials.** `SecretsProvider` with env, OS keyring and AWS SSM Parameter Store (SecureString, standard tier, free) backends; `ffagent secrets set/check`; no secret read bypasses it.
 - **Phase A Docker.** Containerized CLI, compose with `data/` volume, CI builds the image.
 - **Phase B UI.** Local web UI over the same graphs: trigger workflows, review proposals, history, settings. Replaces the CLI as the review surface; Discord deep-links into it.
+- **Phase B2 Matchup dashboard.** Every league's live matchup on one screen: live score, points to come, computed win probability with swing players, standings. Shares the opponent-context math with the lineup advise node.
 - **Phase C Evals (last, largest).** Snapshot recorder, deterministic evaluators, hindsight replays against actual results, LLM-as-judge rubrics, one-command harness that gates merges. See NEXT_STEPS.md for the full list.
 - **Also post-v1.** Scheduler-driven runs, LLM close-call node where it earns its place.
 
@@ -304,6 +305,7 @@ Built as vertical slices, in the order the features are used during a week. Each
 
 ## 11. Decisions log
 
+- 2026-10-19: Matchup dashboard (live scoring, computed win probability) added as Phase B2, after the UI. Defense streaming is a weekly standing rule.
 - 2026-10-14: Advise node built for waivers (playbook + facts + recent decisions → validated, principle-cited proposals; deterministic fallback). Recent performance (points, snap share, targets) from Sleeper's weekly stats for every platform.
 - 2026-10-14: Slice 3 rules layer built from the manager's week-6 cases (playbook/waivers.md, local): holds, potential, roster construction, swap guards, pickup flags, backfield dedupe, need weighting. Each rule has a test derived from a case. The advise node sits on top of these constraints.
 - 2026-10-14: Past seasons on both platforms will be mined for the manager's own tendencies (lineups, waivers, trades, conditioned on format) into the DB, as facts for the advise node and as hindsight eval data.
