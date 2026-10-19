@@ -424,7 +424,7 @@ def cmd_run_audit(config: Config, args) -> int:
             print(f"\n== {ref.name}: {out['error']}")
             continue
         s = out["summary"]
-        print(f"\n== {ref.name} — lineup audit week {week} — {s['teams_checked']} teams checked — {now.astimezone(tz).strftime('%a %H:%M %Z')}")
+        print(f"\n== {ref.name} — lineup audit week {s['week']} — {s['teams_checked']} teams checked — {now.astimezone(tz).strftime('%a %H:%M %Z')}")
         for line in s.get("report", []):
             print(f"   • {localize(line, tz)}")
         if not s.get("report"):

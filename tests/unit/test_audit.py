@@ -71,3 +71,10 @@ def test_notice_message_only_covers_fixable_issues():
                           [P("b_wr", Position.WR, "MIA")])
     msg = notice_message("rival", "Rivals", audit_team(team, st, idx, SCHED, SAT))
     assert msg.startswith("Hey rival, heads up") and "kc_wr (WR) is on bye — b_wr is on your bench" in msg and "dal_rb" not in msg
+
+
+def test_empty_slot_is_locked_once_the_week_is_over():
+    team, idx, st = setup([(None, Slot.TE)], [P("b_te", Position.TE, "SEA")])
+    after = datetime.fromisoformat("2026-10-12T20:00:00-06:00")  # Monday night game underway
+    i = audit_team(team, st, idx, SCHED, after)[0]
+    assert i.locked and not i.fixable and i.fix is None

@@ -24,8 +24,10 @@ def build_audit_graph(deps: LineupDeps, checkpointer: BaseCheckpointSaver | None
         ref = LeagueRef.model_validate(state["league"])
         week = state["week"]
         now = datetime.fromisoformat(state["now"]).astimezone(UTC)
+        from ffagent.graphs.waivers import target_week
         p = deps.provider
         settings = p.settings(ref)
+        week = target_week(deps.schedule_for_week, ref.season, week, now)  # after the last game, audit the coming week
         teams = p.teams(ref)
         index = PlayerIndex(p.players())
         enrich(deps, ref, index, [])
@@ -77,7 +79,7 @@ def build_audit_graph(deps: LineupDeps, checkpointer: BaseCheckpointSaver | None
         summary = {"team": "league", "week": week, "teams_checked": len(teams) - (0 if include_me or ref.my_team_id is None else 1),
                    "report": report, "locked_only": skipped_locked, "projected_before": 0, "projected_after": 0,
                    "first_kickoff": schedule.first_kickoff.isoformat(), "warnings": [], "flags": [], "close_calls": []}
-        return {"proposals": proposals, "summary": summary}
+        return {"proposals": proposals, "summary": summary, "week": week}
 
     def record(state: ReviewState) -> dict[str, Any]:
         if deps.store is not None and state.get("proposals"):

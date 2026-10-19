@@ -59,10 +59,11 @@ def audit_team(team: Team, starters: list[RosterEntry], index: PlayerIndex, sche
         used.add(cands[0].id)
         return cands[0].name
 
+    week_over = now >= schedule.last_kickoff  # nothing left to set once the last game has kicked off
     for e in starters:
         if e.player_id is None:
-            fix = best_fix(e.slot)
-            issues.append(Issue(e.slot, "empty", None, "(empty)", "empty slot", fixable=fix is not None, fix=fix, locked=False))
+            fix = None if week_over else best_fix(e.slot)
+            issues.append(Issue(e.slot, "empty", None, "(empty)", "empty slot", fixable=fix is not None, fix=fix, locked=week_over))
             continue
         p = index.by_id(e.player_id)
         if p is None:
