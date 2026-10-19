@@ -106,13 +106,31 @@ good products but another account for a solo project; HashiCorp Vault is overkil
 - [x] docs/CREDENTIALS.md: AWS setup commands and the IAM policy.
 - [x] SSM parameters and the read-only `ffagent` IAM user created; `FFAGENT_SECRETS=ssm,env` live; `.env` holds no secrets (10/19).
 
-### Phase A — Docker instead of venv
-Containerize the CLI so setup is `docker compose run ffagent …` on any machine, and so the UI and
-scheduler later run in the same image.
+### Phase A — Docker, with a demo mode
+Containerize the CLI so setup is `docker compose run ffagent …` on any machine, so the UI and
+scheduler later run in the same image, and so a reviewer with no leagues and no keys can see every
+workflow run in under a minute.
 - [ ] `Dockerfile` (slim Python base, non-root, the package installed), `compose.yaml` with `data/`
-      as a volume and `.env` passed through; `ffagent.yaml` mounted read-only.
-- [ ] Image build and the offline test suite in CI.
+      as a volume; secrets via the resolver (`.env` backend selection, `~/.aws` mounted read-only or
+      AWS variables passed through, so a role replaces keys on a host without changes).
+- [ ] **Demo mode** (`ffagent demo` / `FFAGENT_DEMO=1`): providers backed by the recorded fixtures
+      (synthetic Sleeper league, scrubbed ESPN leagues, projections, trends, stats, schedule), a fixed
+      clock, deterministic rules on by default and the advise node on if a key is present. Runs
+      lineup, injury, waivers, trades and audit end to end with the approve/reject flow and
+      checklist. No credentials, no network.
+- [ ] `docker compose run ffagent demo` is the first command in the README.
+- [ ] CI (GitHub Actions): lint, offline tests, image build, demo mode smoke run on every push.
 - [ ] README setup becomes two commands; venv stays documented as the dev path.
+
+### Phase A2 — Deployment module (the production story)
+Infrastructure as code for the two targets, same image:
+- [ ] EC2: small instance with an instance role (read `/ffagent/*`), compose on boot, for the
+      maintainer's own daily use. Cheapest, no redesign.
+- [ ] ECS Fargate: EventBridge-scheduled tasks for the weekly workflows, a small service for the UI
+      and game-day watch, task role instead of keys, logs to CloudWatch, state on EFS (or a managed
+      database once Phase B needs it). Terraform (or CDK) module checked in, reviewable as a file.
+- [ ] GitHub Actions → role via OIDC for CI deploys; no stored cloud keys anywhere.
+- [ ] After either is live, delete the `ffagent` IAM user's access key: roles are the only path.
 
 ### Phase B — UI to trigger everything
 A local web UI (served from the container) that replaces the terminal as the review surface:
@@ -229,6 +247,40 @@ See Phase 0 above.
 - [ ] CI: offline tests on every push; live contract tests nightly in season on the maintainer's leagues only.
 - [ ] README walkthrough for a stranger's league, `ffagent.example.yaml`, contributing notes.
 - [ ] Make sure no fixture ever carries personal data (recorder already scrubs; add a CI check).
+
+## Submission readiness (what an agent-focused reviewer looks for)
+
+Honest audit of the project against the things reviewers at agent companies weigh. "Have" means it
+exists today; the rest is scheduled.
+
+| Signal | Status |
+|---|---|
+| Runs with one command, no accounts | Phase A demo mode |
+| Real agent architecture: graph, state, interrupts, resume, checkpoints | Have (LangGraph, SQLite saver) |
+| Human-in-the-loop that is real, not a prompt | Have (interrupt/resume, decisions remembered, verification next run) |
+| Deterministic layer vs model layer, with the model constrained | Have (rules + candidate sets + validated structured output) |
+| Provider-agnostic LLM, graceful degradation when the model fails or is absent | Have |
+| User-owned behaviour (playbooks) and few-shot from the user's own decisions | Have |
+| Secrets handled properly (resolver, least privilege, no keys in repo, roles on hosts) | Have; roles in Phase A2 |
+| Tests: unit, provider contracts on recorded fixtures, graph tests with fakes, opt-in live | Have (300+) |
+| CI running them | Phase A |
+| Containerized, reproducible environment | Phase A |
+| Infrastructure as code | Phase A2 |
+| **Evals**: deterministic, hindsight, LLM-as-judge, gating merges | Phase C (the biggest differentiator) |
+| Observability: structured logs, tracing of graph runs and model calls, token/cost per run | **Missing** — add LangSmith or OpenTelemetry tracing and a per-run cost line |
+| Snapshot/replay of real runs for debugging and evals | Phase C (recorder); start it earlier if cheap |
+| Resilience: retries with backoff on provider calls, rate-limit handling, timeouts | Partial (throttle, cache, fallbacks); add retries |
+| Architecture doc with a diagram, and a 5-minute walkthrough | **Missing** — README diagram + a recorded demo (GIF or short video) |
+| Clean public repo: license, contributing guide, changelog, no personal data | Have license and scrubbing; add CONTRIBUTING and CHANGELOG |
+| Type checking and pre-commit hooks | **Missing** — mypy (or pyright) in CI, pre-commit with ruff |
+| Prompt and playbook versioning | Have (git); add a prompt changelog once prompts stabilise |
+| Safety posture written down: what the agent will never do, validation, approvals | Partly in SPEC; add a short SECURITY/SAFETY note |
+
+- [ ] Tracing and per-run cost reporting (LangSmith or OTel; config-gated).
+- [ ] Retries with backoff for Sleeper, ESPN, expert API and the model; one place, tested.
+- [ ] README: architecture diagram, "how a run works" walkthrough, demo GIF.
+- [ ] CONTRIBUTING.md, CHANGELOG.md, a short SAFETY.md.
+- [ ] mypy or pyright in CI; pre-commit with ruff.
 
 ## Known gaps and debt
 

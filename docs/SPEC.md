@@ -293,7 +293,8 @@ Built as vertical slices, in the order the features are used during a week. Each
 - **M6 League audit.** Every team's lineup checked for byes, injuries and empty slots; manager notices. *Built 2026-10-19.*
 - **M7 ESPN provider.** *Done 2026-10-08:* settings, teams, lineups, free agents, matchups and ESPN's own league-scored weekly projections, from recorded (scrubbed) fixtures of two real leagues. Transactions view still TODO. Each later slice is checked on both platforms.
 - **Phase 0 Credentials.** `SecretsProvider` with env, OS keyring and AWS SSM Parameter Store (SecureString, standard tier, free) backends; `ffagent secrets set/check`; no secret read bypasses it. *Done 2026-10-19: SSM in use.*
-- **Phase A Docker.** Containerized CLI, compose with `data/` volume, CI builds the image.
+- **Phase A Docker + demo mode.** Containerized CLI, compose with `data/` volume; `ffagent demo` runs every workflow on recorded fixtures with no credentials; CI runs lint, tests, image build and the demo.
+- **Phase A2 Deployment module.** IaC for EC2 (personal) and ECS Fargate (production story) with roles instead of keys.
 - **Phase B UI.** Local web UI over the same graphs: trigger workflows, review proposals, history, settings. Replaces the CLI as the review surface; Discord deep-links into it.
 - **Phase B2 Matchup dashboard.** Every league's live matchup on one screen: live score, points to come, computed win probability with swing players, standings. Shares the opponent-context math with the lineup advise node.
 - **Phase C Evals (last, largest).** Snapshot recorder, deterministic evaluators, hindsight replays against actual results, LLM-as-judge rubrics, one-command harness that gates merges. See NEXT_STEPS.md for the full list.
@@ -307,6 +308,7 @@ Built as vertical slices, in the order the features are used during a week. Each
 
 ## 11. Decisions log
 
+- 2026-10-19: The project doubles as a portfolio submission: Phase A gains a credential-free demo mode, Phase A2 an IaC deployment module (EC2 for personal use, Fargate as the production story), and a submission-readiness audit in NEXT_STEPS tracks observability, retries, docs, CI/type checks and evals.
 - 2026-10-19: Slice 5 (`ffagent run audit`) built: bye / Out / IR / suspended / Doubtful starters and empty slots for every team, fixable vs locked, bench fix by value, friendly notice per manager; approved notices not repeated without a new issue; `--include-me`. Covers commissioner-only leagues.
 - 2026-10-19: Slice 4 (`ffagent run trades`) built: deterministic offers that help both lineups, advised and messaged by the LLM with `playbook/trades.md`.
 - 2026-10-19: Matchup dashboard (live scoring, computed win probability) added as Phase B2, after the UI. Defense streaming is a weekly standing rule.
