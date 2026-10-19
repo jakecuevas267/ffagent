@@ -110,17 +110,16 @@ good products but another account for a solo project; HashiCorp Vault is overkil
 Containerize the CLI so setup is `docker compose run ffagent …` on any machine, so the UI and
 scheduler later run in the same image, and so a reviewer with no leagues and no keys can see every
 workflow run in under a minute.
-- [ ] `Dockerfile` (slim Python base, non-root, the package installed), `compose.yaml` with `data/`
-      as a volume; secrets via the resolver (`.env` backend selection, `~/.aws` mounted read-only or
-      AWS variables passed through, so a role replaces keys on a host without changes).
-- [ ] **Demo mode** (`ffagent demo` / `FFAGENT_DEMO=1`): providers backed by the recorded fixtures
+- [x] `Dockerfile` (python 3.12-slim, non-root), `compose.yaml` with `data/`, `ffagent.yaml`, `playbook/` and
+      `~/.aws` (read-only) mounted; AWS variables passed through (10/19).
+- [x] **Demo mode** (`ffagent demo`): providers backed by the recorded fixtures
       (synthetic Sleeper league, scrubbed ESPN leagues, projections, trends, stats, schedule), a fixed
       clock, deterministic rules on by default and the advise node on if a key is present. Runs
       lineup, injury, waivers, trades and audit end to end with the approve/reject flow and
       checklist. No credentials, no network.
-- [ ] `docker compose run ffagent demo` is the first command in the README.
-- [ ] CI (GitHub Actions): lint, offline tests, image build, demo mode smoke run on every push.
-- [ ] README setup becomes two commands; venv stays documented as the dev path.
+- [x] `docker compose run --rm ffagent demo` is the first command in the README.
+- [x] CI (GitHub Actions): lint, offline tests on 3.12, demo smoke run, image build, demo inside the image (10/19, green).
+- [x] README: one-command demo; venv documented as the dev path.
 
 ### Phase A2 — Deployment module (the production story)
 Infrastructure as code for the two targets, same image:
@@ -255,7 +254,7 @@ exists today; the rest is scheduled.
 
 | Signal | Status |
 |---|---|
-| Runs with one command, no accounts | Phase A demo mode |
+| Runs with one command, no accounts | Have (`ffagent demo`, Docker or venv) |
 | Real agent architecture: graph, state, interrupts, resume, checkpoints | Have (LangGraph, SQLite saver) |
 | Human-in-the-loop that is real, not a prompt | Have (interrupt/resume, decisions remembered, verification next run) |
 | Deterministic layer vs model layer, with the model constrained | Have (rules + candidate sets + validated structured output) |
@@ -263,8 +262,8 @@ exists today; the rest is scheduled.
 | User-owned behaviour (playbooks) and few-shot from the user's own decisions | Have |
 | Secrets handled properly (resolver, least privilege, no keys in repo, roles on hosts) | Have; roles in Phase A2 |
 | Tests: unit, provider contracts on recorded fixtures, graph tests with fakes, opt-in live | Have (300+) |
-| CI running them | Phase A |
-| Containerized, reproducible environment | Phase A |
+| CI running them | Have (GitHub Actions) |
+| Containerized, reproducible environment | Have |
 | Infrastructure as code | Phase A2 |
 | **Evals**: deterministic, hindsight, LLM-as-judge, gating merges | Phase C (the biggest differentiator) |
 | Observability: structured logs, tracing of graph runs and model calls, token/cost per run | **Missing** — add LangSmith or OpenTelemetry tracing and a per-run cost line |
