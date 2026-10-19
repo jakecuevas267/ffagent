@@ -580,13 +580,13 @@ def cmd_demo(args) -> int:
     import argparse as _ap
     import tempfile
 
-    import ffagent.cli as me
     from ffagent.demo import CLOCKS, build_demo_deps, build_demo_providers, demo_config
 
+    global build_providers, build_lineup_deps  # the run commands look these up at call time
     data_dir = Path(tempfile.mkdtemp(prefix="ffagent-demo-"))
     config = demo_config(data_dir)
-    me.build_providers = lambda config: build_demo_providers()
-    me.build_lineup_deps = lambda config, providers, store=None: build_demo_deps(config, providers, store)
+    build_providers = lambda config: build_demo_providers()
+    build_lineup_deps = lambda config, providers, store=None: build_demo_deps(config, providers, store)
     workflows = ["lineup", "injury", "waivers", "trades", "audit"] if args.workflow == "all" else [args.workflow]
     print("ffagent demo: recorded fixtures, fixed clock, no credentials. Leagues: a synthetic Sleeper league on a real "
           "player database and a scrubbed ESPN league. Proposals are auto-approved unless --interactive.\n")
