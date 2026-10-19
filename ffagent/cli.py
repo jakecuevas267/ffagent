@@ -313,6 +313,82 @@ def cmd_run_waivers(config: Config, args) -> int:
     return 0
 
 
+def cmd_run_trades(config: Config, args) -> int:
+    from datetime import datetime
+
+    from langgraph.checkpoint.memory import MemorySaver
+    from langgraph.types import Command
+
+    from ffagent.graphs.trades import build_trade_graph, thread_id
+    from ffagent.graphs.waivers import target_week
+    from ffagent.llm.advise import TradeAdviser, load_playbook
+    from ffagent.review.cli import collect_decisions, print_checklist
+    from ffagent.store.db import Store
+
+    providers = build_providers(config)
+    store = None if args.dry_run else Store(config.data_dir / "ffagent.sqlite")
+    deps_by_platform = build_lineup_deps(config, providers, store)
+    refs = _select_refs(config, providers, args.league)
+    if refs is None:
+        return 2
+    now = datetime.fromisoformat(args.now) if args.now else _now()
+    saver = MemorySaver() if args.dry_run else store.checkpointer()
+    adviser = TradeAdviser(None)
+    if config.llm.enabled and not os.environ.get("FFAGENT_NO_LLM"):
+        try:
+            adviser = TradeAdviser.from_config(config.llm.model, load_playbook(config.playbook_dir, "trades"), config.llm.temperature)
+        except Exception as e:  # noqa: BLE001
+            print(f"advise node off ({type(e).__name__}: {str(e)[:80]})", file=sys.stderr)
+
+    for ref in refs:
+        deps = deps_by_platform[ref.platform]
+        week = _week_for(deps, ref, args.week)
+        wk = target_week(deps.schedule_for_week, ref.season, week, now)
+        graph = build_trade_graph(deps, saver, max_offers=config.trades.max_offers, two_for_one=config.trades.two_for_one, adviser=adviser)
+        cfg = {"configurable": {"thread_id": thread_id(ref, wk)}}
+        prior = graph.get_state(cfg)
+        if prior.values and not prior.next and not args.again:
+            print(f"\n== {ref.name}: trades already reviewed for week {wk}; use --again to redo")
+            print_checklist(ref.name, prior.values.get("checklist", []))
+            continue
+        try:
+            out = graph.invoke({"league": ref.model_dump(mode="json"), "week": week, "now": now.isoformat()}, cfg) \
+                if not prior.next else {"__interrupt__": prior.tasks[0].interrupts, "summary": prior.values.get("summary", {})}
+        except AuthExpired as e:
+            print(f"{ref.name}: {e}", file=sys.stderr)
+            continue
+        if out.get("error"):
+            print(f"\n== {ref.name}: {out['error']}")
+            continue
+        s = out["summary"]
+        print(f"\n== {ref.name} — trade targets for week {s['week']} — {s['team']} — deadline {s['deadline']}")
+        print(f"   {s['values']}")
+        print(f"   my starters vs league: {' | '.join(s['strengths'])}")
+        for line in s.get("partners", []):
+            print(f"   partner: {line}")
+        for v in s.get("verify", []):
+            print(f"   ✓ last review: {v}")
+        if s.get("advise"):
+            print(f"   {s['advise']}")
+        for w in s.get("watch", []):
+            print(f"   👀 {w}")
+        if "__interrupt__" not in out:
+            print(f"   no offer that helps me without hurting them ({s.get('offers_found', 0)} considered)")
+            continue
+        payload = out["__interrupt__"][0].value
+        for n, p in enumerate(payload["proposals"], 1):
+            print(f"\n   [{n}] {p['rationale']}")
+            for e in p["evidence"]:
+                print(f"       - {e}")
+            print(f"       → {p['payload']['step']}")
+        if args.dry_run:
+            continue
+        decisions = collect_decisions(payload["proposals"], auto_approve=args.auto_approve)
+        final = graph.invoke(Command(resume=decisions), cfg)
+        print_checklist(ref.name, final.get("checklist", []))
+    return 0
+
+
 def cmd_run_injury(config: Config, args) -> int:
     from datetime import datetime, timedelta
     from zoneinfo import ZoneInfo
@@ -405,7 +481,7 @@ def main(argv: list[str] | None = None) -> int:
     lg.add_argument("--json", action="store_true")
     lg.add_argument("--all", action="store_true", help="show every team's roster, not just mine")
     run = sub.add_parser("run", help="run a workflow now")
-    run.add_argument("workflow", choices=["lineup", "injury", "waivers"])
+    run.add_argument("workflow", choices=["lineup", "injury", "waivers", "trades"])
     run.add_argument("--league", help="league name or id; default all")
     run.add_argument("--week", type=int)
     run.add_argument("--now", help="ISO timestamp override (testing)")
@@ -432,6 +508,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_run_injury(config, args)
     if args.cmd == "run" and args.workflow == "waivers":
         return cmd_run_waivers(config, args)
+    if args.cmd == "run" and args.workflow == "trades":
+        return cmd_run_trades(config, args)
     return 1
 
 

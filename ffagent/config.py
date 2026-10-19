@@ -60,6 +60,11 @@ class WaiverConfig(BaseModel):
     stream_defense: bool = True  # propose the best available DEF every week
 
 
+class TradeConfig(BaseModel):
+    max_offers: int = 3
+    two_for_one: bool = True
+
+
 class Config(BaseModel):
     season: int
     timezone: str = "America/New_York"
@@ -69,6 +74,7 @@ class Config(BaseModel):
     notify: list[NotifyConfig] = Field(default_factory=list)
     schedule: ScheduleConfig = Field(default_factory=ScheduleConfig)
     waivers: WaiverConfig = Field(default_factory=WaiverConfig)
+    trades: TradeConfig = Field(default_factory=TradeConfig)
     data_dir: Path = Path("data")
     expert_cache_hours: float = 6.0  # expert projections are re-fetched at most this often
     playbook_dir: Path = Path("playbook")

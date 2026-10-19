@@ -69,3 +69,12 @@ def test_load_playbook_prefers_personal_over_example(tmp_path):
 def test_build_messages_shape():
     msgs = build_messages("pb", {"format": "dynasty"}, [], CANDS, DROPS, [], 50, 2)
     assert msgs[0][0] == "system" and "pb" in msgs[0][1] and msgs[1][0] == "human" and '"faab_remaining": 50' in msgs[1][1]
+
+
+def test_validate_trades_only_known_offers():
+    from ffagent.llm.advise import TradeAdvice, TradeAdviceOut, validate_trades
+    out = TradeAdviceOut(proposals=[TradeAdvice(offer_id="x", action="propose", message="m", principle="p", rationale="r"),
+                                    TradeAdvice(offer_id="o1", action="propose", message="m", principle="p", rationale="r"),
+                                    TradeAdvice(offer_id="o2", action="skip", message="", principle="p", rationale="r")])
+    ok, rejected = validate_trades(out, {"o1", "o2"}, 3)
+    assert [a.offer_id for a in ok] == ["o1"] and rejected == ["x: not an offer on the list"]

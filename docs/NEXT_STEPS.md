@@ -24,7 +24,7 @@ safer than a file, and is open source so anyone with a Sleeper or ESPN league ca
 | Slice 1 — lineup (Thursday lock) | Done, used live on all 6 leagues |
 | Slice 2 — injury start/sit + IR housekeeping | Done, committed; first real game-day use Sun 10/11 |
 | Slice 3 — waivers (Tuesday) | Built; first live use Tue 10/13 |
-| Slice 4 — trade targets | Not started |
+| Slice 4 — trade targets | Built (advise-first); first live use pending |
 | Slice 5 — league-wide lineup audit | Not started |
 | Expert source | FantasyAPISource (premium) through the projection gateway; Upper Hand still pending access |
 | Review surface | CLI only |
@@ -183,7 +183,8 @@ passing it.
 - [x] Deterministic playbook rules for waivers (holds, potential, construction, swaps, flags, backfields, need), tested from the manager's cases (10/14).
 - [x] `advise` node for waivers: playbook + candidate set with facts + league profile + recent decisions in;
       structured, validated proposals with a named principle per rationale out (10/14).
-- [ ] Same node for lineups (slice 1) once `playbook/lineup.md` has content, and for trades (slice 4).
+- [ ] Same node for lineups (slice 1) once `playbook/lineup.md` has content.
+- [x] Trades advise node with `playbook/trades.md` (10/19).
 - [x] Recent performance facts (last 3 weeks points, snap share, targets) from Sleeper weekly stats.
 - [ ] Playbook rules are format-conditional (discovered attributes), never league-specific; personal
       playbooks are git-ignored, templates ship.

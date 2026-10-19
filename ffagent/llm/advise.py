@@ -129,3 +129,86 @@ class Adviser:
             return AdviseResult([], model=self.model, error=f"{type(e).__name__}: {e}"[:160])
         ok, rejected = validate(out, candidate_ids, droppable_ids, budget, max_actions)
         return AdviseResult(ok, out.watch, out.holds_questioned, self.model, None, rejected)
+
+
+# --- Trades -------------------------------------------------------------------------------------
+
+class TradeAdvice(BaseModel):
+    offer_id: str = Field(description="id of the offer, from the candidate offers list")
+    action: str = Field(description="propose | skip")
+    message: str = Field(description="the message to send the other manager: short, friendly, specific")
+    principle: str = Field(description="the playbook principle applied")
+    rationale: str = Field(description="why this offer, citing the facts shown")
+
+
+class TradeAdviceOut(BaseModel):
+    proposals: list[TradeAdvice] = Field(default_factory=list)
+    watch: list[str] = Field(default_factory=list, description="players or partners worth watching for a future deal")
+
+
+TRADE_SYSTEM = """You are a fantasy football manager's assistant. You apply the manager's own playbook to trade
+offers a deterministic layer has already prepared (each helps my lineup and does not hurt the
+partner's by much, within a fairness band). Rules:
+- Choose only among the listed offers; never invent players or offers.
+- Every proposal names the playbook principle it applies and comes with the message to send.
+- Prefer offers the partner is likely to accept; say why they would.
+- Respect the league format facts (dynasty values future, superflex values QBs, deadline).
+- An empty proposals list is a valid answer.
+Answer only with the structured output."""
+
+
+def validate_trades(out: TradeAdviceOut, offer_ids: set[str], max_actions: int) -> tuple[list[TradeAdvice], list[str]]:
+    ok, rejected, seen = [], [], set()
+    for a in out.proposals:
+        if a.action == "skip":
+            continue
+        if a.offer_id not in offer_ids:
+            rejected.append(f"{a.offer_id}: not an offer on the list"); continue
+        if a.offer_id in seen:
+            continue
+        seen.add(a.offer_id); ok.append(a)
+        if len(ok) >= max_actions:
+            break
+    return ok, rejected
+
+
+@dataclass
+class TradeAdviseResult:
+    proposals: list[TradeAdvice]
+    watch: list[str] = field(default_factory=list)
+    model: str = ""
+    error: str | None = None
+    rejected: list[str] = field(default_factory=list)
+
+
+class TradeAdviser:
+    def __init__(self, llm=None, model: str = "", playbook: str = ""):
+        self._llm, self.model, self.playbook = llm, model, playbook
+
+    @classmethod
+    def from_config(cls, model: str, playbook: str, temperature: float | None = None):
+        from langchain.chat_models import init_chat_model
+        kwargs = {} if temperature is None else {"temperature": temperature}
+        return cls(init_chat_model(model, **kwargs).with_structured_output(TradeAdviceOut, method="json_schema"), model, playbook)
+
+    @property
+    def enabled(self) -> bool:
+        return self._llm is not None
+
+    def advise(self, league: dict, my_roster: list[dict], offers: list[dict], recent_decisions: list[dict],
+               max_actions: int) -> TradeAdviseResult:
+        if not self.enabled:
+            return TradeAdviseResult([], error="advise node off")
+        user = {"league_format": league, "max_actions": max_actions, "my_roster": my_roster,
+                "candidate_offers": offers, "my_recent_decisions": recent_decisions}
+        msgs = [("system", TRADE_SYSTEM + "\n\n# Manager's playbook\n" + (self.playbook or "(no playbook written yet)")),
+                ("human", "Pick the trade offers worth sending this week and write the messages.\n\n" + json.dumps(user, indent=1, default=str))]
+        try:
+            out = self._llm.invoke(msgs)
+            if not isinstance(out, TradeAdviceOut):
+                out = TradeAdviceOut.model_validate(out)
+        except Exception as e:  # noqa: BLE001
+            log.warning("trade advise failed: %s", e)
+            return TradeAdviseResult([], model=self.model, error=f"{type(e).__name__}: {e}"[:160])
+        ok, rejected = validate_trades(out, {o["id"] for o in offers}, max_actions)
+        return TradeAdviseResult(ok, out.watch, self.model, None, rejected)
